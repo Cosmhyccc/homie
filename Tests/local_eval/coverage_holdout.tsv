@@ -1,0 +1,59 @@
+# Held out: written after tuning, never tuned against. Score honestly.
+Yo homie set a timer for 7 minutes.	schedule_alert
+Could you start a 40 minute timer please?	schedule_alert
+Timer for 90 seconds.	schedule_alert
+Set a timer for 1 hour 30 minutes.	schedule_alert
+Set a timer for 3 minutes for tea.	schedule_alert
+Okay set a 6 minute timer.	schedule_alert
+How long is left on the timer?	list_alerts
+Any timers running?	list_alerts
+What's the time right now?	
+What's the date today?	
+Hey Homie, go dark mode.	mac_setting
+Can you switch it to light mode?	mac_setting
+Turn the Wi-Fi off.	mac_setting
+Mute the sound.	mac_setting
+Set volume to 20.	mac_setting
+Volume up.	mac_setting
+Volume down a bit.	mac_setting
+A little louder.	mac_setting
+Turn it down a little.	mac_setting
+Brightness down.	mac_setting
+Set brightness to 40%.	mac_setting
+Make it brighter.	mac_setting
+Open Discord.	open_app
+Open up Messages.	open_app
+Launch Figma.	open_app
+Open Instagram.	open_website
+Go to youtube.com.	open_website
+Quit Discord.	quit_app
+Close Xcode.	quit_app
+Google how tall is the Eiffel Tower.	search_web
+Search YouTube for Mr. Beast.	search_web
+Pause it.	control_apple_music
+Skip this track.	control_apple_music
+Next.	control_apple_music
+Previous track.	control_apple_music
+Play Starboy by The Weeknd.	play_apple_music
+Play Kendrick Lamar.	play_apple_music
+Throw on some Travis Scott.	play_apple_music
+What do I have on my calendar today?	read_calendar
+What's my schedule tomorrow?	read_calendar
+Any meetings tomorrow?	read_calendar
+What reminders do I have?	read_reminders
+Show me my to-dos.	read_reminders
+Take a screen shot.	take_screenshot
+Make yourself huge.	set_pixie_size
+Close the window.	model
+Turn the music up.	model
+What's the weather in Austin?	model
+Play the new Drake album.	model
+Remind me to drink water every hour.	model
+Delete my last reminder.	model
+Open my downloads folder.	model
+Text Abby I'm running late.	model
+What's 15% of 80?	model
+How do I make pancakes?	model
+Pause for a second, I'm thinking.	model
+Stop.	model
+Go to sleep.	model

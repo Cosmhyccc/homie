@@ -1,0 +1,5 @@
+build/
+engines/
+LocalVoice/.build/
+.DS_Store
+*.o

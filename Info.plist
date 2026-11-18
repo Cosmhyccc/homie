@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>homie</string>
+<key>CFBundleIdentifier</key><string>local.homie.app</string>
+<key>CFBundleName</key><string>homie</string>
+<key>CFBundleDisplayName</key><string>homie</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSUIElement</key><true/>
+<key>NSHighResolutionCapable</key><true/>
+<key>LSMinimumSystemVersion</key><string>26.0</string>
+<key>NSMicrophoneUsageDescription</key><string>homie listens while you talk to it. Audio is processed on this Mac and never uploaded.</string>
+<key>NSSpeechRecognitionUsageDescription</key><string>homie turns your voice into text with Apple's on-device speech recognition. Nothing is sent to a server.</string>
+<key>NSAppleEventsUsageDescription</key><string>homie controls Music, creates Apple Notes and switches Arc tabs when you ask.</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>homie reads your calendar when you ask about your schedule. It never creates, edits or deletes events.</string>
+<key>NSRemindersFullAccessUsageDescription</key><string>homie reads, creates and completes your reminders when you ask.</string>
+</dict></plist>

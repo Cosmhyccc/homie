@@ -1,0 +1,157 @@
+# phrase<TAB>tool that should run instantly, or "model" when the brain must decide. Written the way Apple's recognizer types speech. Player: Apple Music.
+Set a timer for 5 minutes.	schedule_alert
+Hey homie, set a timer for 10 minutes.	schedule_alert
+Set a 20 minute timer.	schedule_alert
+Timer for 2:00.	schedule_alert
+Set a timer for 30 seconds.	schedule_alert
+Can you set a timer for 45 minutes?	schedule_alert
+Set a timer for an hour.	schedule_alert
+Set timer 15 minutes.	schedule_alert
+Start a timer for 3 minutes.	schedule_alert
+Set a timer for 8 minutes for the pasta.	schedule_alert
+Set a 12 minute timer for laundry.	schedule_alert
+Timer 5 minutes.	schedule_alert
+5 minute timer.	schedule_alert
+Set a timer for one minute.	schedule_alert
+Remind me in 10 minutes.	model
+Wake me up at 7.	model
+Set an alarm for 6:30 AM.	model
+Cancel my timer.	model
+How much time is left on my timer?	list_alerts
+How much time is left?	list_alerts
+Do I have any timers?	list_alerts
+What timers do I have?	list_alerts
+What time is it?	
+What time is it right now?	
+What's the time?	
+What's today's date?	
+What day is it?	
+What's the date?	
+Dark mode.	mac_setting
+Turn on dark mode.	mac_setting
+Switch to dark mode.	mac_setting
+Light mode.	mac_setting
+Turn off dark mode.	mac_setting
+Turn on light mode.	mac_setting
+Make it dark mode.	mac_setting
+Turn off Wi-Fi.	mac_setting
+Turn Wi-Fi back on.	mac_setting
+Mute.	mac_setting
+Mute my Mac.	mac_setting
+Unmute.	mac_setting
+Volume 30.	mac_setting
+Set the volume to 50%.	mac_setting
+Turn the volume up.	mac_setting
+Turn it down.	mac_setting
+Turn the volume down a little.	mac_setting
+Louder.	mac_setting
+Turn it up a bit.	mac_setting
+Max volume.	mac_setting
+Turn the volume all the way up.	mac_setting
+Brightness 70.	mac_setting
+Make the screen brighter.	mac_setting
+Turn the brightness down.	mac_setting
+Turn the brightness all the way up.	mac_setting
+Dim the screen.	mac_setting
+Why is dark mode better?	model
+What's my Wi-Fi password?	model
+Open Notes.	open_app
+Open Safari.	open_app
+Open up Spotify.	open_app
+Open Messages.	open_app
+Launch Xcode.	open_app
+Open the calculator.	open_app
+Open System Settings.	open_app
+Open Finder.	open_app
+Pull up Slack.	open_app
+Open Calendar.	open_app
+Open YouTube.	open_website
+Open Gmail.	open_website
+Go to github.com.	open_website
+Open twitter.	open_website
+Open Netflix.	open_website
+Open ChatGPT.	open_app
+Go to Reddit.	open_website
+Quit Slack.	quit_app
+Close Safari.	quit_app
+Close Spotify.	quit_app
+Quit Xcode.	quit_app
+Close this window.	model
+Close this tab.	model
+Open my last email.	model
+Open the file I was working on.	model
+Open a new tab.	model
+Open Spotify and play Drake.	model
+Google best tacos near me.	search_web
+Search for flights to Tokyo.	search_web
+Look up the weather in Chicago.	search_web
+Search YouTube for lo-fi beats.	search_web
+Find skate videos on YouTube.	search_web
+Search how to make cold brew.	search_web
+What's the weather?	model
+What's the weather like tomorrow?	model
+Pause.	control_apple_music
+Pause the music.	control_apple_music
+Stop the music.	control_apple_music
+Next song.	control_apple_music
+Skip.	control_apple_music
+Skip this song.	control_apple_music
+Go back.	model
+Previous song.	control_apple_music
+Play the last song.	control_apple_music
+Resume.	control_apple_music
+Play.	control_apple_music
+Keep playing.	control_apple_music
+Play Billie Jean by Michael Jackson.	play_apple_music
+Play Blinding Lights by The Weeknd.	play_apple_music
+Play Drake.	play_apple_music
+Play Espresso.	play_apple_music
+Put on some Frank Ocean.	play_apple_music
+Play some music.	model
+Play my workout playlist.	model
+Play something chill.	model
+Play Drake on Spotify.	model
+Play lo-fi on YouTube.	model
+What song is this?	model
+Like this song.	model
+What's on my calendar today?	read_calendar
+What's on my calendar tomorrow?	read_calendar
+What do I have today?	read_calendar
+What do I have going on tomorrow?	read_calendar
+What's my schedule look like today?	read_calendar
+Do I have any meetings today?	read_calendar
+What's my day look like?	read_calendar
+What's next on my calendar?	model
+Am I free at 3 tomorrow?	model
+What's on my calendar next week?	model
+What's on my to-do list?	read_reminders
+What's on my to do list?	read_reminders
+What are my reminders?	read_reminders
+Read me my reminders.	read_reminders
+What do I need to do today?	model
+Remind me to call mom at 5.	model
+Add milk to my reminders.	model
+Make a note called groceries with eggs milk and bread.	model
+Take a screenshot.	take_screenshot
+Screenshot.	take_screenshot
+Take a screenshot of this window.	take_screenshot
+Get bigger.	set_pixie_size
+Make yourself bigger.	set_pixie_size
+Go small.	set_pixie_size
+Clear the drawings.	clear_screen_drawings
+How are you?	model
+Tell me a joke.	model
+Tell me something interesting about space.	model
+What's the capital of France?	model
+Explain black holes like I'm five.	model
+Who are you?	model
+Thanks.	model
+Never mind.	model
+Put Safari on the left and Notes on the right.	model
+Find my resume.	model
+Empty the trash.	model
+Send hi to Abby on Discord.	model
+Type hello world in Notes.	model
+Switch to my Mixpanel tab.	model
+Turn on Do Not Disturb.	model
+Lock my screen.	model
