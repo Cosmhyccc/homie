@@ -134,7 +134,11 @@ enum LocalRouter {
         let text = normalize(partial)
         guard let last = text.split(separator: " ").last.map(String.init) else { return 0.7 }
         let dangling: Set<String> = ["and", "then", "um", "uh", "so", "to", "the", "a", "an", "for", "with", "of", "my", "like", "but",
-                                     "or", "on", "in", "at", "by", "play", "open", "set", "turn", "make", "can", "could", "what's", "whats", "is"]
+                                     "or", "on", "in", "at", "by", "play", "open", "set", "turn", "make", "can", "could", "what's", "whats", "is",
+                                     // mid-thought: "tell me something interesting about…" (cut off in Saif's test)
+                                     "about", "from", "into", "if", "when", "because", "that", "which", "who", "as", "than", "how",
+                                     "what", "why", "where", "your", "his", "her", "their", "our", "this", "these", "those", "some",
+                                     "any", "more", "really", "very", "just", "also", "me", "something", "kind", "sort", "are", "was"]
         if dangling.contains(last) { return 1.2 }
         if let fast = intent(partial, music: .spotify) ?? intent(partial, music: nil) {
             // "what's on my calendar" may still get a "tomorrow": give read-outs without a day the normal wait.
@@ -587,6 +591,11 @@ enum LocalTools {
     static func redirect(_ name: String, _ args: [String: Any]) -> (String, [String: Any]) {
         if name == "cancel_alert", !((args["id"] as? String) ?? "").hasPrefix("pixie.alert.") { return ("list_alerts", [:]) }
         return (name, args)
+    }
+    /// The part of a streamed reply that may be shown and spoken: everything before leaked tool-call markup.
+    static func visible(_ text: String) -> String {
+        let cut = ["<tool_call", "<function", "<parameter", "</tool_call", "</function"].compactMap { text.range(of: $0)?.lowerBound }.min()
+        return cut.map { String(text[..<$0]).trimmingCharacters(in: .whitespacesAndNewlines) } ?? text
     }
     /// Text that must never be read aloud: leaked tool-call markup or the bracketed time/app note.
     static func leaked(_ phrase: String) -> Bool {

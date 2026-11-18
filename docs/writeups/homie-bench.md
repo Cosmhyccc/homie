@@ -54,6 +54,12 @@ Reality check: this Mac's speed swings 2× with memory pressure (Qwen 4B writes 
 | Nov 17 | Lite tier for 8 GB Macs: Qwen3.5 2B, ctx 8192, plain-rules prompt (auto at ≤8 GB RAM) | 2B with the 4B prompt 16/30 (said "Got it" without acting); lite prompt 24/30; + grounding check 26/30 (left: calendar → instant lane, note vs type, system vs music volume, leaked markup → filtered). Brain + voice ~1.9 GB vs ~3.75 GB. Bench: brain p50 0.66 s / p90 0.70 s, turn done 0.92 s | ✅ (needs a real 8 GB Mac) |
 | Nov 17 | Grounding check: an action tool needs a matching word in what was said, else answer in words | 4B stays 30/30; 2B 24 → 26/30, no more "tell me a joke" → plays a song | ✅ |
 
+| Nov 18 | the voice test #2 | brain turns after the first: first sound 0.5–1.4 s, head start used 14/14; dictation on-device 0.3 s; voice crash recovered once (2.9 s) | — |
+| Nov 18 | First turn 9.5 s: brain weights evicted from RAM while idle → read the model file on Fn press | expected first turn ~1 s; needs re-test | ✅ |
+| Nov 18 | Endpoint cut "tell me something interesting about…" → more mid-thought words get 1.2 s | coverage 100%/0 wrong fires kept | ✅ |
+| Nov 18 | Music took the double-click as select-only (Espresso) → re-press once if the requested song isn't playing after ~1.4 s | needs re-test | ✅ |
+| Nov 18 | Fn while homie thinks/talks interrupts and listens (the ask) | needs re-test | ✅ |
+
 ## Next ideas
 - Real-voice end-to-end numbers from real sessions (`local_*` diagnostics: endpoint, model first/total, tool, tts, first audio).
 - Stream long answers into the voice in smaller first chunks.

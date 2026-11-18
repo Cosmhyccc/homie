@@ -176,30 +176,128 @@ import CryptoKit
     }
     /// Pre-read the system prompt + tool list so the first real turn only processes the new words.
     /// The result is saved to disk: next launch reloads it in ~0.1s instead of re-reading for ~10s.
+    // MARK: Text chat
+
+    enum ChatError: LocalizedError {
+        case noBrain, downloading(Int), notReady, inVoice, model(Int)
+        var errorDescription: String? {
+            switch self {
+            case .noBrain: return "homie's brain isn't on this Mac yet. Start a voice chat once (press Fn) to download it."
+            case .downloading(let p): return "homie is still downloading its brain (\(p)%). Chat works as soon as it's done."
+            case .notReady: return "homie's brain didn't start. Quit and reopen \(LocalBrain.appName) to try again."
+            case .inVoice: return "homie is in a voice chat right now. Try again when it's done."
+            case .model(let code): return "homie's brain hiccuped (\(code)). Try again."
+            }
+        }
+    }
+    private var chatting: Task<Void, Never>?
+    /// Text chat on the local brain: no tools, one reply at a time, and never at the same time as a voice turn.
+    /// The brain has one slot holding voice's saved instructions; after the reply they're restored (0.1–0.4 s),
+    /// so the next Fn is still instant. Yields text as it streams.
+    func chat(messages: [[String: String]], maxTokens: Int = 800) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { @MainActor [weak self] in
+                guard let self else { continuation.finish(); return }
+                do {
+                    guard self.phase == .idle else { throw ChatError.inVoice }
+                    if HomieModels.installed(Self.tier) == nil {
+                        self.warm()   // starts the one-time download
+                        throw self.downloader.running ? ChatError.downloading(Int(self.downloader.progress * 100)) : ChatError.noBrain
+                    }
+                    self.warm()
+                    for _ in 0..<240 where !self.qwenReady { try await Task.sleep(for: .milliseconds(250)) }
+                    guard self.qwenReady else { throw ChatError.notReady }
+                    var req = URLRequest(url: self.qwenURL.appendingPathComponent("v1/chat/completions"))
+                    req.httpMethod = "POST"; req.timeoutInterval = 120
+                    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    req.setValue("Bearer \(self.qwenKey)", forHTTPHeaderField: "Authorization")
+                    req.httpBody = try JSONSerialization.data(withJSONObject: ["messages": messages, "max_tokens": maxTokens, "temperature": 0.6,
+                                                                               "stream": true, "cache_prompt": false])
+                    let started = ProcessInfo.processInfo.systemUptime
+                    let (bytes, response) = try await URLSession.shared.bytes(for: req)
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    guard status == 200 else { throw ChatError.model(status) }
+                    var text = "", sent = "", first = true
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        guard line.hasPrefix("data: ") else { continue }
+                        let payload = line.dropFirst(6)
+                        if payload == "[DONE]" { break }
+                        guard let event = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
+                              let part = ((event["choices"] as? [[String: Any]])?.first?["delta"] as? [String: Any])?["content"] as? String else { continue }
+                        if first { first = false; Diagnostics.shared.record("local_chat_ms", category: "first", number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000)) }
+                        text += part
+                        let visible = LocalTools.visible(text)
+                        if visible.count > sent.count { continuation.yield(String(visible.dropFirst(sent.count))); sent = visible }
+                    }
+                    Diagnostics.shared.record("local_chat_ms", category: "total", number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000))
+                    continuation.finish()
+                } catch { continuation.finish(throwing: error) }
+                self.chatting = nil
+                if self.qwenReady { self.prime() }   // voice's instructions back in the slot
+            }
+            self.chatting = task
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Right after the saved prompt state is restored, the slot has only coarse save points. A cancelled head start then
+    /// rolls it back to the last one (~2/3 through the prompt) and the real question re-reads the rest: 13 s in Saif's test,
+    /// vs ~2.5 s with no head start. So the first question after a restore skips the head start.
+    private var freshlyRestored = false
     private func prime() {
         let system = systemPrompt(), tools = chatTools
         primedPrompt = system
         let toolData = (try? JSONSerialization.data(withJSONObject: tools, options: [.sortedKeys])) ?? Data()
-        let digest = SHA256.hash(data: Data((system + "|llama-b11912|\(Self.tier.model)|novision|").utf8) + toolData)
+        // Every body sent to the brain uses sorted JSON keys: Swift dictionaries come out in a different key order on every
+        // launch, which changed the rendered tool list word-for-word and forced a full ~3,300-token re-read after each relaunch.
+        // v2: the saved state ends exactly where every question starts (the user-turn marker), so a real question only
+        // adds tokens. The v1 state ended in a fake "[warm-up] hi" question that each real one had to undo; on the first
+        // question after launch that undo fell back to the very start and re-read all ~3,300 tokens (6–19 s in Saif's tests).
+        let digest = SHA256.hash(data: Data((system + "|llama-b11912|\(Self.tier.model)|novision|prefix-v3|").utf8) + toolData)
         let file = "homie-" + digest.prefix(12).map { String(format: "%02x", $0) }.joined() + ".bin"
-        var req = URLRequest(url: qwenURL.appendingPathComponent("v1/chat/completions"))
-        req.httpMethod = "POST"; req.timeoutInterval = 120
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("Bearer \(qwenKey)", forHTTPHeaderField: "Authorization")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["messages": [["role": "system", "content": system], ["role": "user", "content": "[warm-up] hi"]],
-                                                                     "tools": tools, "tool_choice": "auto", "max_tokens": 1, "cache_prompt": true])
+        let base = qwenURL, key = qwenKey
+        func request(_ path: String, _ body: [String: Any]) -> URLRequest {
+            var req = URLRequest(url: base.appendingPathComponent(path)); req.httpMethod = "POST"; req.timeoutInterval = 120
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type"); req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys]); return req
+        }
+        let marker = "\u{00A7}HOMIE\u{00A7}"
+        let template = request("apply-template", ["messages": [["role": "system", "content": system], ["role": "user", "content": marker]], "tools": tools, "tool_choice": "auto"])
         let folder = Self.cacheFolder
         Task {
             let started = ProcessInfo.processInfo.systemUptime
             let restored = FileManager.default.fileExists(atPath: folder.appendingPathComponent(file).path) ? await slot("restore", file) : false
-            // Re-sending the identical warm-up after a restore makes this model re-read everything; real turns reuse it fine.
-            if !restored { _ = try? await URLSession.shared.data(for: req) }
+            if restored { self.freshlyRestored = true }
+            if !restored {
+                // Read the instructions up to and including the start-of-user-turn marker, nothing more.
+                guard let (data, _) = try? await URLSession.shared.data(for: template),
+                      let rendered = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["prompt"] as? String,
+                      let at = rendered.range(of: marker), let turn = rendered.range(of: "<|im_start|>", options: .backwards, range: rendered.startIndex..<at.lowerBound)
+                else { Diagnostics.shared.record("local_prime_ms", category: "template_failed"); return }
+                _ = try? await URLSession.shared.data(for: request("completion", ["prompt": String(rendered[..<turn.upperBound]), "n_predict": 0, "cache_prompt": true]))
+            }
             Diagnostics.shared.record("local_prime_ms", category: restored ? "restored" : "cold", number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000))
             guard !restored, await slot("save", file) else { return }
             // Keep only the current snapshot.
             for old in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where old.hasPrefix("homie-") && old != file {
                 try? FileManager.default.removeItem(at: folder.appendingPathComponent(old))
             }
+        }
+    }
+    /// After a quiet stretch macOS pushes the brain's weights out of memory; the first answer then reads 2.7 GB from disk
+    /// (Saif's first turn: 9.5 s). Reading the file while the user is still talking puts it back (~1 s on an M5 SSD).
+    private var pagesWarmedAt: TimeInterval = 0
+    private func warmBrainPages() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - pagesWarmedAt > 60, let brain = HomieModels.installed(Self.tier) else { return }
+        pagesWarmedAt = now
+        Task.detached(priority: .userInitiated) {
+            let started = ProcessInfo.processInfo.systemUptime
+            guard let handle = try? FileHandle(forReadingFrom: brain) else { return }
+            defer { try? handle.close() }
+            while let chunk = try? handle.read(upToCount: 16 << 20), !chunk.isEmpty {}
+            Diagnostics.shared.record("local_pages_warm_ms", number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000))
         }
     }
     /// The voice engine prepares itself per sentence length the first time (~3.5s for a long one).
@@ -244,6 +342,7 @@ import CryptoKit
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyFile.path)
             FileManager.default.createFile(atPath: log.path, contents: nil)
             let p = Process(); p.executableURL = exe
+            p.qualityOfService = .userInteractive   // the answer the user is waiting on; never run as background work
             p.arguments = args.map { $0 == "KEY" ? keyFile.path : $0 }
             if let h = try? FileHandle(forWritingTo: log) { p.standardOutput = h; p.standardError = h }
             p.terminationHandler = { _ in Task { @MainActor in died() } }
@@ -265,6 +364,7 @@ import CryptoKit
 
     func start() {
         guard phase == .idle else { return }
+        warmBrainPages()
         warm()
         // Profile or memory changed since the last warm-up: re-read now, while the user is still talking.
         if qwenReady, systemPrompt() != primedPrompt { prime() }
@@ -281,6 +381,10 @@ import CryptoKit
                 try? await Task.sleep(for: .milliseconds(500)); guard listenID == id, phase == .waking else { return }
             }
             if let downloadError, HomieModels.installed(Self.tier) == nil { fail(downloadError); return }
+            // A text chat reply is using the brain: let it finish (it puts voice's instructions back after).
+            while chatting != nil {
+                try? await Task.sleep(for: .milliseconds(100)); guard listenID == id, phase == .waking else { return }
+            }
             for _ in 0..<120 where !(qwenReady && voiceReady) {
                 try? await Task.sleep(for: .milliseconds(500)); guard listenID == id, phase == .waking else { return }
             }
@@ -389,7 +493,7 @@ import CryptoKit
                 self.endOfTurn = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in Task { @MainActor in self?.userFinished() } }
                 self.headTimer?.invalidate()
                 if let head = self.head, head.text != text { head.cancel(); self.head = nil }
-                if wait >= 0.6, self.qwenReady, LocalRouter.intent(text, music: Self.musicApp()) == nil {
+                if wait >= 0.6, self.qwenReady, !self.freshlyRestored, LocalRouter.intent(text, music: Self.musicApp()) == nil {
                     self.headTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in Task { @MainActor in self?.startHead(text) } }
                 }
                 if result.isFinal { self.userFinished() }
@@ -426,10 +530,13 @@ import CryptoKit
         if let result = start.result { return try result.get() }
         return try await withCheckedThrowingContinuation { start.waiter = $0 }
     }
+    /// What the user circled on screen, read on this Mac (ScreenPeek). Used by the next question, then cleared.
+    var screenNote: String?
     private func userMessage(_ text: String) -> [String: Any] {
         let now = Date().formatted(date: .abbreviated, time: .shortened)
         let app = context()["foreground_app"] ?? "unknown"
-        return ["role": "user", "content": "[\(now) \(TimeZone.current.identifier) · frontmost app: \(app)]\n\(text)"]
+        let seen = screenNote.map { "[\($0)]\n" } ?? ""
+        return ["role": "user", "content": "[\(now) \(TimeZone.current.identifier) · frontmost app: \(app)]\n\(seen)\(text)"]
     }
     private func endRecognition() {
         headTimer?.invalidate(); endOfTurn?.invalidate(); request?.endAudio(); recognition?.cancel(); recognition = nil; request = nil
@@ -443,6 +550,14 @@ import CryptoKit
         if lastHeardAt > 0 { Diagnostics.shared.record("local_endpoint_ms", number: Int((turnStarted - lastHeardAt) * 1000)) }
         onCaption?(text, false)
         ask(text)
+    }
+    /// Fn while homie is thinking or talking: stop and listen. Returns false when there was nothing to interrupt.
+    func interrupt() -> Bool {
+        guard phase == .thinking || phase == .speaking else { return false }
+        Diagnostics.shared.record("local_interrupt", category: phase == .speaking ? "speaking" : "thinking")
+        recent = []   // the user tapped a key; don't replay buffered audio as speech
+        bargeIn()
+        return true
     }
     private func bargeIn() {
         loudRun = 0
@@ -496,6 +611,7 @@ import CryptoKit
         devLog(text)
         conversationLines.append(text)
         let memoryReply = memory.heard(text); memory.save()
+        freshlyRestored = false   // this question's prompt leaves a fresh save point for the next head start
         // Use the head start if it began on exactly this sentence and nothing changed since.
         let started: HeadStart? = head.flatMap { $0.text == text && $0.wireCount == wire.count ? $0 : nil }
         if started == nil { head?.cancel() }
@@ -503,6 +619,7 @@ import CryptoKit
         let starts = wire.indices.filter { wire[$0]["role"] as? String == "user" }
         if starts.count >= 6 { wire = Array(wire.suffix(from: starts[starts.count - 5])) }
         wire.append(started?.message ?? userMessage(text))
+        screenNote = nil
         Diagnostics.shared.record("local_head_start", category: started == nil ? "none" : "used")
         set(.thinking, "Thinking…")
         let id = UUID(); turnID = id; replyDone = false; closeAfterReply = false
@@ -545,10 +662,14 @@ import CryptoKit
                         guard let self, self.turnID == id, !acknowledged else { return }
                         acknowledged = true; self.speakLine(Self.acknowledgements.randomElement() ?? "On it.")
                     }
-                    let onText: (String) -> Void = { [weak self] partial in
+                    let onText: (String) -> Void = { [weak self] raw in
                         guard let self, self.turnID == id else { return }
+                        // A small model sometimes writes a tool call as plain text: never show or say anything from there on.
+                        let partial = LocalTools.visible(raw)
+                        guard partial.count > said.count else { return }
                         let fresh = String(partial.dropFirst(said.count)); said = partial
-                        if !fresh.isEmpty { self.onCaption?(fresh, true) }
+                        let caption = PhraseChunker.noEmoji(fresh)
+                        if !caption.isEmpty { self.onCaption?(caption, true) }
                         for phrase in chunker.feed(partial) { self.say(phrase) }
                     }
                     var response: [String: Any]
@@ -558,10 +679,10 @@ import CryptoKit
                     // A tool call with nothing in the user's words behind it: drop it and let the model answer in words.
                     if let calls = response["tool_calls"] as? [[String: Any]], calls.contains(where: { !LocalTools.grounded(($0["function"] as? [String: Any])?["name"] as? String ?? "", said: text) }) {
                         Diagnostics.shared.record("local_ungrounded_call", category: Self.tier.rawValue)
-                        response = try await complete(toolChoice: "none", onText: onText)
+                        response = try await complete(messages: wire + [["role": "user", "content": "(Just answer in words; no tool is needed for this.)"]], toolChoice: "none", onText: onText)
                         guard turnID == id else { return }
                     }
-                    for phrase in chunker.feed(response["content"] as? String ?? "", final: true) { say(phrase) }
+                    for phrase in chunker.feed(LocalTools.visible(response["content"] as? String ?? ""), final: true) { say(phrase) }
                     if let calls = response["tool_calls"] as? [[String: Any]], !calls.isEmpty {
                         wire.append(response)
                         var done: String? = calls.count == 1 ? "" : nil
@@ -583,7 +704,7 @@ import CryptoKit
                         }
                         continue
                     }
-                    let answer = response["content"] as? String ?? ""
+                    let answer = LocalTools.visible(response["content"] as? String ?? "")
                     wire.append(["role": "assistant", "content": answer])
                     break
                 }
@@ -653,7 +774,7 @@ import CryptoKit
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(qwenKey)", forHTTPHeaderField: "Authorization")
         req.httpBody = try JSONSerialization.data(withJSONObject: ["messages": [["role": "system", "content": systemPrompt()]] + (messages ?? wire), "tools": chatTools,
-                                                                    "tool_choice": toolChoice, "temperature": 0.4, "max_tokens": 400, "stream": true, "cache_prompt": true])
+                                                                    "tool_choice": toolChoice, "temperature": 0.4, "max_tokens": 400, "stream": true, "cache_prompt": true], options: [.sortedKeys])
         let started = ProcessInfo.processInfo.systemUptime
         var firstToken = false
         defer { Diagnostics.shared.record("local_model_ms", category: "total", number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000)) }
@@ -666,8 +787,10 @@ import CryptoKit
             if !firstToken { firstToken = true; Diagnostics.shared.record("local_model_ms", category: "first", number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000)) }
             let payload = line.dropFirst(6)
             if payload == "[DONE]" { break }
-            guard let event = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
-                  let delta = (event["choices"] as? [[String: Any]])?.first?["delta"] as? [String: Any] else { continue }
+            let parsed = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any]
+            // How many prompt tokens this request had to read (the rest came from the cache). Should be tens, not thousands.
+            if let reread = (parsed?["timings"] as? [String: Any])?["prompt_n"] as? Int { Diagnostics.shared.record("local_prompt_tokens", category: Self.tier.rawValue, number: reread) }
+            guard let event = parsed, let delta = (event["choices"] as? [[String: Any]])?.first?["delta"] as? [String: Any] else { continue }
             if let part = delta["content"] as? String { text += part; onText(text) }
             if calls.isEmpty, text.isEmpty, delta["tool_calls"] != nil { onToolStart?() }
             for piece in delta["tool_calls"] as? [[String: Any]] ?? [] {

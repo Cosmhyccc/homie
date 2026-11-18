@@ -41,6 +41,10 @@ struct PhraseChunker {
         guard j < chars.count, !word.isEmpty else { return nil }
         return word.lowercased()
     }
+    /// Captions keep markdown-free text as written, minus emoji (homie never says them, so it doesn't show them either).
+    static func noEmoji(_ text: String) -> String {
+        String(text.unicodeScalars.filter { !($0.properties.isEmojiPresentation || ($0.properties.isEmoji && $0.value > 0x2000)) })
+    }
     static func clean(_ text: String) -> String {
         String(text.replacingOccurrences(of: "[*#`_>]", with: "", options: .regularExpression)
             .unicodeScalars.filter { !($0.properties.isEmojiPresentation || ($0.properties.isEmoji && $0.value > 0x2000)) })   // never read emoji aloud

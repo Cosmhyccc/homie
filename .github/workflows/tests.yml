@@ -1,0 +1,14 @@
+name: tests
+on:
+  push:
+  pull_request:
+jobs:
+  unit:
+    # Apple silicon runner. Covers everything that needs no model, mic or macOS permissions:
+    # the instant-lane router (plus coverage sets), memory, phrase chunking, song matching, the model downloader.
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: bash scripts/test.sh

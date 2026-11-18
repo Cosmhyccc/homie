@@ -4,12 +4,14 @@ import SwiftUI
 /// Pixie's look. Classic is the original black tab; the pink skins add a bow.
 enum PixieSkin: String, CaseIterable {
     case classic, pink, pinkRainbow
+    /// Rainbow is retired from the pickers; a saved rainbow choice shows as plain pink.
+    static var allCases: [PixieSkin] { [.classic, .pink] }
 
     static let changed = Notification.Name("PixieSkinChanged")
     private static let key = "pixie.skin"
 
     static var current: PixieSkin {
-        get { PixieSkin(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .classic }
+        get { let saved = PixieSkin(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .classic; return saved == .pinkRainbow ? .pink : saved }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: key)
             NotificationCenter.default.post(name: changed, object: nil)
@@ -19,8 +21,8 @@ enum PixieSkin: String, CaseIterable {
     var title: String {
         switch self {
         case .classic: "Classic"
-        case .pink: "Pink Pixie"
-        case .pinkRainbow: "Pink Pixie (Rainbow)"
+        case .pink: "Pink"
+        case .pinkRainbow: "Pink"
         }
     }
 

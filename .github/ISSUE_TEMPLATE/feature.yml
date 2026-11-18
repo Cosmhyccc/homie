@@ -1,0 +1,14 @@
+name: Idea
+description: Something homie should do
+labels: [idea]
+body:
+  - type: textarea
+    id: say
+    attributes:
+      label: What would you say to homie?
+      description: Example phrasings help us decide whether it's an instant command or something the model should handle.
+    validations: {required: true}
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters to you

@@ -1,0 +1,27 @@
+name: Bug
+description: homie did something wrong or slow
+labels: [bug]
+body:
+  - type: textarea
+    id: said
+    attributes:
+      label: What you said
+      description: The exact words if you remember them. With `defaults write local.homie.app pixie.local.devLog -bool true`, homie keeps a private log of what it heard on your Mac.
+    validations: {required: true}
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened vs. what you expected
+    validations: {required: true}
+  - type: input
+    id: mac
+    attributes:
+      label: Mac and macOS
+      placeholder: "M2 Air, 8 GB, macOS 26.1"
+    validations: {required: true}
+  - type: textarea
+    id: bench
+    attributes:
+      label: Bench output (optional)
+      description: Output of `bash Tests/local_eval/bench.sh` helps a lot with speed issues.
+      render: text

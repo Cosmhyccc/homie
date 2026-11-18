@@ -176,6 +176,10 @@ import Foundation
         precondition(LocalTools.redirect("cancel_alert", ["id": "pixie.alert.ABC"]).0 == "cancel_alert")
         precondition(LocalTools.leaked("<tool_call> <function=play_apple_music>") && LocalTools.leaked("[Nov 17 · frontmost app: Safari]") && !LocalTools.leaked("Paris!"))
 
+        precondition(LocalTools.visible("Here's a fun one! <tool_call>\n<function=search_web>\n<parameter=site>\nweb") == "Here's a fun one!")
+        precondition(LocalTools.visible("Paris!") == "Paris!")
+        precondition(LocalTools.visible("<tool_call><function=x>") == "")
+
         // Reply only on clear success
         let open = LocalRouter.intent("open notes")!
         precondition(LocalRouter.reply(open, result: ["status": "opened"]) != nil)

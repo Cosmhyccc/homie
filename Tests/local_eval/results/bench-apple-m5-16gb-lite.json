@@ -6,7 +6,7 @@
   "macos": "26.7.2",
   "model": "Mac17,3"
  },
- "model": "Qwen3.5-4B-Q4_K_M (llama.cpp b11912)",
+ "model": "Qwen3.5-2B-Q4_K_M (llama.cpp b11912)",
  "voice": "Kokoro af_heart (FluidAudio)",
  "instant_first_audio_p50": 0.40285000801086424,
  "instant_first_audio_p90": 0.6767843723297119,
@@ -479,5 +479,6 @@
    "first_audio": 0.6658528804779053,
    "first_audio_no_head_start": 0.852310037612915
   }
- ]
+ ],
+ "tier": "lite"
 }

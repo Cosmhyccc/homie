@@ -113,7 +113,18 @@ final class MusicController {
         onStatus?("Starting \(match.trackName)…", false)
         // A correct double-click starts playback in about a second; don't make the user wait 15.
         let verificationDeadline = Date().addingTimeInterval(6)
-        for _ in 0..<24 {
+        var repressed = false
+        for attempt in 0..<24 {
+            // Music sometimes takes the double-click as a select only (the row turns red, nothing plays). Seen with
+            // "Espresso" in Saif's test, while another song kept playing. If it isn't playing after ~1.4 s, double-click the row once more.
+            if attempt == 4, !repressed {
+                repressed = true
+                let now = (try? await snapshot()) ?? nil
+                let playingIt = now?.playing == true && Self.normalized(now?.title ?? "") == Self.normalized(match.trackName)
+                if !playingIt, try await pressSongPlay(catalogID: match.trackId, title: match.trackName) {
+                    Diagnostics.shared.record("music_repress", category: "select_only")
+                }
+            }
             guard Date() < verificationDeadline else { break }
             guard operation == id else { throw CancellationError() }
             if let actual = try? await snapshot(), actual.playing,

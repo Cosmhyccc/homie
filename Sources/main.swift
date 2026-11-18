@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var hotkey: Timer?
     private var previousFn = false
+    private var fnDownAt: Date?
+    private var drawing = false
     private var talking = false
     private var lastSpeaker: Bool?
     private var caption = ""
@@ -49,19 +51,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         notch.position()
         NotificationCenter.default.addObserver(self, selector: #selector(position), name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        // Poll the real Fn key (not the function modifier shared by arrow keys). A tap toggles the conversation.
+        // Circle something while holding Fn: homie reads it on this Mac (Apple Vision) and you ask about it.
+        ScreenInk.shared.onFinish = { [weak self] marked in
+            guard let self, marked else { return }
+            MainActor.assumeIsolated {
+                if !self.talking { self.brain.start() }
+                self.notch.model.caption = "Taking a peek… What would you like to know?"
+                Task { @MainActor in
+                    self.brain.screenNote = await ScreenPeek.read()
+                        ?? "They circled part of their screen, but nothing in it could be read as text. Say you can only read text on screen for now."
+                }
+            }
+        }
+        // Poll the real Fn key (not the function modifier shared by arrow keys).
+        // Tap: talk / interrupt / end. Hold: draw on the screen, release to ask about it.
         previousFn = CGEventSource.keyState(.hidSystemState, key: CGKeyCode(kVK_Function))
         let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
             guard let self else { return }
             let down = CGEventSource.keyState(.hidSystemState, key: CGKeyCode(kVK_Function))
             let alone = NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
-            if down && !self.previousFn && alone { self.toggle() }
+            if down && !self.previousFn && alone { self.fnDownAt = Date() }
+            if down, let began = self.fnDownAt, !self.drawing, Date().timeIntervalSince(began) >= 0.28 {
+                self.drawing = true
+                ScreenInk.shared.begin()
+                self.notch.model.visionStatus = "Draw to point · Release Fn to ask"
+            }
+            if !down && self.previousFn, self.fnDownAt != nil {
+                self.fnDownAt = nil
+                if self.drawing { self.drawing = false; self.notch.model.visionStatus = nil; ScreenInk.shared.end() }
+                else { self.toggle() }
+            }
             self.previousFn = down
         }
         RunLoop.main.add(timer, forMode: .common); hotkey = timer
     }
 
-    @objc private func toggle() { MainActor.assumeIsolated { talking ? brain.stop() : brain.start() } }
+    /// Fn: start; while homie is thinking or talking, interrupt and listen; while listening, end.
+    @objc private func toggle() { MainActor.assumeIsolated {
+        if brain.interrupt() { return }
+        talking ? brain.stop() : brain.start()
+    } }
     @objc private func toggleGiant() { notch.setGiant(!notch.model.giantEyes) }
     @objc private func position() { notch.position() }
 
