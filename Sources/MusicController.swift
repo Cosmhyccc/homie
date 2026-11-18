@@ -346,7 +346,7 @@ final class MusicController {
                       rowFrame.insetBy(dx: -2, dy: -2).contains(hitFrame) else {
                     miss((process.isActive ? "not_row_" : "not_row_inactive_") + Self.string(hit, kAXRoleAttribute)); return
                 }
-                Diagnostics.shared.record("music_press_hit", category: (process.isActive ? "" : "inactive_") + Self.string(hit, kAXRoleAttribute))
+                Diagnostics.shared.record("music_press_hit", category: (process.isActive ? "" : "inactive_") + Self.string(hit, kAXRoleAttribute), number: Int((ProcessInfo.processInfo.systemUptime - passStarted) * 1000))
                 guard let source = CGEventSource(stateID: .hidSystemState) else { miss("no_event_source"); return }
                 for count in 1...2 {
                     for type in [CGEventType.leftMouseDown, .leftMouseUp] {

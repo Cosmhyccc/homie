@@ -23,7 +23,7 @@ final class NotchModel: ObservableObject {
     var permissions: (() -> Void)?
 }
 
-private struct NotchContent: View {
+struct NotchContent: View {
     @ObservedObject var model: NotchModel
     private let pink = Color(red: 1, green: 0.27, blue: 0.42)
     private var ink: Color { model.skin.ink }

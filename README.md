@@ -13,6 +13,8 @@ Press <kbd>fn</kbd>, talk. It sets timers, plays music, reads your calendar, fli
 ![offline](https://img.shields.io/badge/works-offline-2ea44f)
 [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
+<img src="docs/assets/notch-demo.gif" alt="homie in the notch: listening, then answering" width="720">
+
 <img src="docs/assets/latency.svg" alt="Latency from end of speech to first sound" width="760">
 
 </div>
