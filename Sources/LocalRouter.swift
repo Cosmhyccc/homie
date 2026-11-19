@@ -153,7 +153,7 @@ enum LocalRouter {
     /// The 3D canvas by name: shapes, molecules, the solar system. Math surfaces go to the model (it turns speech into an expression).
     static func canvas3D(_ text: String) -> LocalIntent? {
         let ask = #"^(can you |could you |please )?(show|draw|make|render|build|give|display)( me| us)? (a |an |the |some )?(3d |three d )?"#
-        let shapes = "sphere|ball|cube|box|torus|donut|doughnut|cone|cylinder|pyramid|capsule|helix|spiral|spring|dna helix|double helix|dna"
+        let shapes = "sphere|ball|cube|box|torus|donut|doughnut|cone|cylinder|pyramid|capsule|helix|spiral|spring|dna helix|double helix|dna|saturn|jupiter|earth|mars|the moon|moon|atom"
         let molecules = "water|carbon dioxide|co2|methane|ammonia|benzene|ethanol|oxygen"
         func first(_ pattern: String) -> [String]? {
             guard let regex = try? NSRegularExpression(pattern: pattern),

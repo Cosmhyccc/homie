@@ -88,7 +88,7 @@ final class MusicController {
         guard operation == id else { throw CancellationError() }
         guard AXIsProcessTrusted() else {
             requestAccessibility()
-            throw MusicFailure.message("Enable Pixie in System Settings → Privacy & Security → Accessibility, then ask again. This lets Pixie press the exact song’s Play button in Music.")
+            throw MusicFailure.message("Enable \(LocalBrain.appName) in System Settings → Privacy & Security → Accessibility, then ask again. This lets \(LocalBrain.appName) press the exact song’s Play button in Music.")
         }
         guard var components = URLComponents(string: match.trackViewUrl), components.host == "music.apple.com" else {
             throw MusicFailure.message("Apple returned an unsupported song link.")
@@ -158,7 +158,7 @@ final class MusicController {
             onStatus?(current.playing ? "Playing in Apple Music" : "Paused", false)
             return current.result
         }
-        onStatus?("Ask Pixie to play a song", false)
+        onStatus?("Ask \(LocalBrain.appName) to play a song", false)
         return ["status": "opened", "message": "Music is open. No current track."]
     }
 
@@ -237,7 +237,7 @@ final class MusicController {
                     let data = output.fileHandleForReading.readDataToEndOfFile()
                     let error = String(data: errors.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
                     guard process.terminationStatus == 0 else {
-                        let message = error.contains("-1743") ? "Allow Pixie to control Music in System Settings → Privacy & Security → Automation, then ask again." : "Apple Music couldn’t complete the command. Check for a dialog in Music and try again."
+                        let message = error.contains("-1743") ? "Allow \(LocalBrain.appName) to control Music in System Settings → Privacy & Security → Automation, then ask again." : "Apple Music couldn’t complete the command. Check for a dialog in Music and try again."
                         continuation.resume(throwing: MusicFailure.message(message)); return
                     }
                     continuation.resume(returning: data)

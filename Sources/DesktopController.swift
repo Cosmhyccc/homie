@@ -148,7 +148,7 @@ final class DesktopController {
         let (start, end) = try Self.dateRange(arguments)
         if EKEventStore.authorizationStatus(for: .event) != .fullAccess {
             guard try await calendarStore.requestFullAccessToEvents() else {
-                throw MusicFailure.message("Allow Pixie calendar access in System Settings → Privacy & Security → Calendars. Pixie only reads events.")
+                throw MusicFailure.message("Allow \(LocalBrain.appName) calendar access in System Settings → Privacy & Security → Calendars. \(LocalBrain.appName) only reads events.")
             }
         }
         try Task.checkCancellation()
@@ -212,7 +212,7 @@ final class DesktopController {
                     let bytes = output.fileHandleForReading.readDataToEndOfFile()
                     let error = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
                     guard process.terminationStatus == 0 else {
-                        throw MusicFailure.message(error.contains("-1743") ? "Allow Pixie to control Notes in Privacy & Security → Automation, then try again." : "Notes couldn’t finish the request. Check Notes before retrying; it may have saved the note.")
+                        throw MusicFailure.message(error.contains("-1743") ? "Allow \(LocalBrain.appName) to control Notes in Privacy & Security → Automation, then try again." : "Notes couldn’t finish the request. Check Notes before retrying; it may have saved the note.")
                     }
                     guard let result = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else { throw MusicFailure.message("Notes returned an unexpected result. Check for the saved note before retrying.") }
                     continuation.resume(returning: result)
@@ -274,7 +274,7 @@ final class DesktopController {
     }
 
     private func runningApp(_ arguments: [String: Any]) throws -> NSRunningApplication {
-        guard AXIsProcessTrusted() else { throw MusicFailure.message("Pixie needs Accessibility access to inspect or type in apps.") }
+        guard AXIsProcessTrusted() else { throw MusicFailure.message("\(LocalBrain.appName) needs Accessibility access to inspect or type in apps.") }
         let url = try appURL(arguments)
         guard let id = Bundle(url: url)?.bundleIdentifier,
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first else { throw MusicFailure.message("Open that app first.") }
@@ -515,7 +515,7 @@ final class DesktopController {
         }
         JSON.stringify(result);
         """
-        let output = try await runCheck("/usr/bin/osascript", ["-l", "JavaScript", "-e", source], timeout: 30, failure: "Arc couldn’t switch tabs. Allow Pixie to control Arc in Privacy & Security → Automation if prompted, then try again.")
+        let output = try await runCheck("/usr/bin/osascript", ["-l", "JavaScript", "-e", source], timeout: 30, failure: "Arc couldn’t switch tabs. Allow \(LocalBrain.appName) to control Arc in Privacy & Security → Automation if prompted, then try again.")
         guard let result = try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any] else {
             throw MusicFailure.message("Arc returned an unexpected result.")
         }
@@ -554,7 +554,7 @@ final class DesktopController {
               draft.pid == app.processIdentifier, draft.text == expected,
               Date().timeIntervalSince(draft.created) < 120,
               app.bundleIdentifier == snapshotApp, Date().timeIntervalSince(snapshotTime) < 30 else {
-            throw MusicFailure.message("Type the requested message with Pixie and inspect it before sending. No current matching draft.")
+            throw MusicFailure.message("Type the requested message with \(LocalBrain.appName) and inspect it before sending. No current matching draft.")
         }
         let trimmed = expected.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.hasPrefix("/"), !trimmed.hasPrefix("!") else {
@@ -691,7 +691,7 @@ final class DesktopController {
         try Task.checkCancellation()
         // Only whitelisted fixed commands; no model input is executable code.
         let script = "const app = Application('com.spotify.client'); " + command + " delay(0.25); JSON.stringify({status:String(app.playerState()), app:'Spotify'});"
-        let output = try await runCheck("/usr/bin/osascript", ["-l", "JavaScript", "-e", script], timeout: 15, failure: "Spotify control failed. Allow Pixie to control Spotify in System Settings → Privacy & Security → Automation if prompted.")
+        let output = try await runCheck("/usr/bin/osascript", ["-l", "JavaScript", "-e", script], timeout: 15, failure: "Spotify control failed. Allow \(LocalBrain.appName) to control Spotify in System Settings → Privacy & Security → Automation if prompted.")
         guard let result = try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any] else { throw MusicFailure.message("Spotify did not return playback state.") }
         lastMusicProvider = "Spotify"
         return result

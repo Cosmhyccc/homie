@@ -42,7 +42,7 @@ final class TaskController: NSObject, UNUserNotificationCenterDelegate {
     }
     @MainActor private func reminderAccess() async throws {
         if EKEventStore.authorizationStatus(for: .reminder) != .fullAccess {
-            guard try await store.requestFullAccessToReminders() else { throw MusicFailure.message("Allow Pixie access to Reminders in System Settings.") }
+            guard try await store.requestFullAccessToReminders() else { throw MusicFailure.message("Allow \(LocalBrain.appName) access to Reminders in System Settings.") }
         }
         store.reset()
     }
@@ -91,10 +91,10 @@ final class TaskController: NSObject, UNUserNotificationCenterDelegate {
         }
         if name == "schedule_alert" {
             let text = try title(a), due = try Self.alertDate(a)
-            guard try await notifications.requestAuthorization(options: [.alert, .sound]) else { throw MusicFailure.message("Allow Pixie notifications in System Settings before setting an alarm.") }
+            guard try await notifications.requestAuthorization(options: [.alert, .sound]) else { throw MusicFailure.message("Allow \(LocalBrain.appName) notifications in System Settings before setting an alarm.") }
             let content = UNMutableNotificationContent()
             content.userInfo = ["due_at": iso.string(from: due)]
-            content.title = text; content.body = "Time’s up — Pixie"; content.sound = .default
+            content.title = text; content.body = "Time’s up — \(LocalBrain.appName)"; content.sound = .default
             let id = "pixie.alert." + UUID().uuidString
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, due.timeIntervalSinceNow), repeats: false)
             try await notifications.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))

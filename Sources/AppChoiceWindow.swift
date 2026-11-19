@@ -65,7 +65,7 @@ final class AppChoiceWindow: NSObject, NSWindowDelegate {
         panel.contentView = NSHostingView(rootView: VStack(spacing: 18) {
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 44, height: 44)
             Text("Let’s find your app.").font(.system(size: 24, weight: .semibold))
-            Text("Pixie is getting ready…").foregroundStyle(.secondary)
+            Text("\(LocalBrain.appName) is getting ready…").foregroundStyle(.secondary)
             Button("Cancel") { [weak self] in self?.cancel() }
         }.padding(30).frame(width: 460, height: 260))
         if let content = panel.contentView { panel.setContentSize(content.fittingSize) }
@@ -91,7 +91,7 @@ final class AppChoiceWindow: NSObject, NSWindowDelegate {
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 44, height: 44)
             Text("Voice is off.").font(.system(size: 24, weight: .semibold))
             Text("Your app choice is still here.").foregroundStyle(.secondary)
-            Button("Reconnect Pixie") { [weak self] in self?.retryVoice() }
+            Button("Reconnect \(LocalBrain.appName)") { [weak self] in self?.retryVoice() }
                 .buttonStyle(.borderedProminent).tint(.indigo)
             Button("Cancel") { [weak self] in self?.cancel() }
         }.padding(30).frame(width: 460, height: 260))

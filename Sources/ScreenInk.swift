@@ -503,7 +503,7 @@ private final class InkCanvas: NSView {
             var x = board.minX + step; while x < board.maxX { var y = board.minY + step; while y < board.maxY { NSBezierPath(ovalIn: CGRect(x: x - 1.5, y: y - 1.5, width: 3, height: 3)).fill(); y += step }; x += step }
         }
         NSGraphicsContext.restoreGraphicsState()
-        let hint = "Pixie’s canvas · drag to move · × to close"
+        let hint = "\(LocalBrain.appName)’s canvas · drag to move · × to close"
         let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.black.withAlphaComponent(0.35 * ease * hintFade(opened))]
         (hint as NSString).draw(at: CGPoint(x: board.minX + 22, y: board.minY + 16), withAttributes: attrs)
     }

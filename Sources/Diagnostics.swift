@@ -50,14 +50,14 @@ final class Diagnostics {
     }
     @MainActor func export() {
         let panel = NSSavePanel()
-        panel.title = "Export Pixie Diagnostics"
-        panel.nameFieldStringValue = "Pixie-Diagnostics.txt"
-        panel.message = "Contains technical events and errors, not conversation text, recordings, passwords or screenshots. Share this file with the Pixie team."
+        panel.title = "Export \(LocalBrain.appName) Diagnostics"
+        panel.nameFieldStringValue = "\(LocalBrain.appName)-Diagnostics.txt"
+        panel.message = "Contains technical events and errors, not conversation text, recordings, passwords or screenshots. Share this file with the \(LocalBrain.appName) team."
         guard panel.runModal() == .OK, let destination = panel.url else { return }
         let events = queue.sync { (try? Data(contentsOf: url)) ?? Data() }
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
-        var output = Data("Pixie diagnostics\nVersion: \(version) (\(build))\nSystem: \(ProcessInfo.processInfo.operatingSystemVersionString)\nNo conversation content is recorded.\n\n".utf8)
+        var output = Data("\(LocalBrain.appName) diagnostics\nVersion: \(version) (\(build))\nSystem: \(ProcessInfo.processInfo.operatingSystemVersionString)\nNo conversation content is recorded.\n\n".utf8)
         output.append(events)
         do {
             try output.write(to: destination, options: .atomic)

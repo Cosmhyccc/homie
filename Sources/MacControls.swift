@@ -120,7 +120,7 @@ import ApplicationServices
     // MARK: Windows
 
     private func arrange(_ arguments: [String: Any]) throws -> [String: Any] {
-        guard AXIsProcessTrusted() else { throw MusicFailure.message("Pixie needs Accessibility permission to move windows.") }
+        guard AXIsProcessTrusted() else { throw MusicFailure.message("\(LocalBrain.appName) needs Accessibility permission to move windows.") }
         guard let windows = arguments["windows"] as? [[String: Any]], !windows.isEmpty else { throw MusicFailure.message("No windows to arrange.") }
         guard let screen = NSScreen.main ?? NSScreen.screens.first, let primary = NSScreen.screens.first else { throw MusicFailure.message("No display found.") }
         let visible = screen.visibleFrame
@@ -249,7 +249,7 @@ import ApplicationServices
     }
 
     private func clickOnScreen(_ arguments: [String: Any]) async throws -> [String: Any] {
-        guard AXIsProcessTrusted() else { throw MusicFailure.message("Pixie needs Accessibility permission to click.") }
+        guard AXIsProcessTrusted() else { throw MusicFailure.message("\(LocalBrain.appName) needs Accessibility permission to click.") }
         let point = try screenPoint(arguments)
         let arrival = PixieCursor.shared.click(at: point.appKit)
         if arrival > 0 { try await Task.sleep(for: .milliseconds(Int(arrival * 1000))) }
@@ -299,12 +299,12 @@ import ApplicationServices
         let order = ["ctrl", "cmd", "option", "shift"]
         let canonical = (order.filter(names.contains) + [key == "esc" ? "escape" : key]).joined(separator: "+")
         let loose = (["cmd", "option", "shift"].filter(names.contains) + [key == "esc" ? "escape" : key]).joined(separator: "+")
-        guard !blocked.contains(canonical), !blocked.contains(loose) else { throw MusicFailure.message("Pixie doesn’t press that shortcut.") }
+        guard !blocked.contains(canonical), !blocked.contains(loose) else { throw MusicFailure.message("\(LocalBrain.appName) doesn’t press that shortcut.") }
         return (code, flags, canonical)
     }
 
     private func pressKeys(_ arguments: [String: Any]) async throws -> [String: Any] {
-        guard AXIsProcessTrusted() else { throw MusicFailure.message("Pixie needs Accessibility permission to press keys.") }
+        guard AXIsProcessTrusted() else { throw MusicFailure.message("\(LocalBrain.appName) needs Accessibility permission to press keys.") }
         let (code, flags, name) = try Self.parseKeys(arguments["keys"] as? String ?? "")
         guard let app = Self.runningApp(arguments["app"] as? String ?? "") else { throw MusicFailure.message("That app isn’t open.") }
         app.activate()
@@ -322,7 +322,7 @@ import ApplicationServices
     }
 
     private func scrollScreen(_ arguments: [String: Any]) async throws -> [String: Any] {
-        guard AXIsProcessTrusted() else { throw MusicFailure.message("Pixie needs Accessibility permission to scroll.") }
+        guard AXIsProcessTrusted() else { throw MusicFailure.message("\(LocalBrain.appName) needs Accessibility permission to scroll.") }
         let point = try screenPoint(arguments)
         let amount = Int32(max(1, min(10, (arguments["amount"] as? NSNumber)?.intValue ?? 3))) * 3
         let direction = arguments["direction"] as? String ?? "down"
@@ -358,7 +358,7 @@ import ApplicationServices
                 process.waitUntilExit()
                 if process.terminationStatus == 0 { continuation.resume(returning: String(data: data, encoding: .utf8) ?? "") }
                 else if problem.contains("-1743") || problem.contains("Not authorized") {
-                    continuation.resume(throwing: MusicFailure.message("Pixie needs Automation permission for this. Allow it in System Settings → Privacy & Security → Automation."))
+                    continuation.resume(throwing: MusicFailure.message("\(LocalBrain.appName) needs Automation permission for this. Allow it in System Settings → Privacy & Security → Automation."))
                 } else { continuation.resume(throwing: MusicFailure.message("That Mac control didn’t work.")) }
             }
         }

@@ -197,8 +197,71 @@ import SceneKit
         case "capsule", "pill": return (node(SCNCapsule(capRadius: 0.6, height: 2.6), green), "A capsule")
         case "helix", "spiral", "spring": return (helix(strands: 1), "A helix")
         case "dna", "dna helix", "double helix": return (helix(strands: 2), "DNA double helix")
+        case "saturn": return (planet(0xe9d8a6, ring: 0xd4c19c, bands: 0xc9a66b), "Saturn")
+        case "jupiter": return (planet(0xd4a373, ring: nil, bands: 0xa9744f), "Jupiter")
+        case "earth", "the earth", "globe": return (planet(0x2f6fd6, ring: nil, bands: 0x2ea44f, land: true), "Earth")
+        case "mars": return (planet(0xe76f51, ring: nil, bands: 0xb5523b), "Mars")
+        case "moon", "the moon": return (planet(0xbdbdbd, ring: nil, bands: 0x8d8d8d), "The Moon")
+        case "atom": return (atom(), "An atom")
         default: return nil
         }
+    }
+
+    /// A planet with soft latitude bands (and Saturn's rings), tilted so the rings read in 3D.
+    private static func planet(_ base: UInt32, ring: UInt32?, bands: UInt32, land: Bool = false) -> SCNNode {
+        let root = SCNNode()
+        let sphere = SCNSphere(radius: 1.2); sphere.segmentCount = 64
+        let size = 256, image = NSImage(size: NSSize(width: size, height: size / 2))
+        image.lockFocus()
+        color(base).setFill(); NSRect(x: 0, y: 0, width: size, height: size / 2).fill()
+        if land {
+            // Rough continents (fixed shapes, so Earth looks the same every time) and white poles.
+            color(bands).setFill()
+            for (x, y, w, h) in [(30, 60, 50, 38), (52, 30, 22, 30), (110, 70, 34, 30), (118, 34, 30, 38), (160, 66, 80, 34), (190, 30, 34, 26), (206, 22, 18, 10)] as [(CGFloat, CGFloat, CGFloat, CGFloat)] {
+                NSBezierPath(ovalIn: NSRect(x: x, y: y, width: w, height: h)).fill()
+            }
+            NSColor.white.setFill(); NSRect(x: 0, y: 0, width: CGFloat(size), height: 8).fill(); NSRect(x: 0, y: CGFloat(size / 2 - 8), width: CGFloat(size), height: 8).fill()
+        } else {
+            for k in 0..<7 { color(bands).withAlphaComponent(0.35).setFill(); NSRect(x: 0, y: CGFloat(10 + k * 17), width: CGFloat(size), height: CGFloat(4 + (k % 3) * 3)).fill() }
+        }
+        image.unlockFocus()
+        let m = SCNMaterial(); m.diffuse.contents = image; m.lightingModel = .blinn; m.specular.contents = NSColor(white: 0.15, alpha: 1)
+        sphere.materials = [m]
+        let body = SCNNode(geometry: sphere)
+        body.runAction(.repeatForever(.rotateBy(x: 0, y: .pi * 2, z: 0, duration: 10)))
+        root.addChildNode(body)
+        if let ring {
+            for (inner, outer, alpha) in [(1.55, 1.95, 0.85), (2.0, 2.45, 0.6)] {
+                let tube = SCNTube(innerRadius: inner, outerRadius: outer, height: 0.02)
+                let rm = SCNMaterial(); rm.diffuse.contents = color(ring).withAlphaComponent(alpha); rm.isDoubleSided = true; rm.lightingModel = .lambert
+                tube.materials = [rm]; root.addChildNode(SCNNode(geometry: tube))
+            }
+        }
+        root.eulerAngles = SCNVector3(0.42, 0, 0.18)
+        return root
+    }
+
+    /// Nucleus (protons red, neutrons gray) with three tilted electron orbits.
+    private static func atom() -> SCNNode {
+        let root = SCNNode()
+        let protons = material(color(0xe53935)), neutrons = material(NSColor(white: 0.6, alpha: 1))
+        for k in 0..<8 {
+            let ball = SCNSphere(radius: 0.22); ball.materials = [k % 2 == 0 ? protons : neutrons]
+            let n = SCNNode(geometry: ball)
+            let a = Double(k) * 2.4, r = k == 0 ? 0 : 0.22
+            n.position = SCNVector3(r * cos(a), r * sin(a * 1.3), r * sin(a)); root.addChildNode(n)
+        }
+        for (k, tilt) in [(0.0, 0.0), (1.0, 1.05), (2.0, -1.05)].enumerated() {
+            let orbit = SCNNode(); orbit.eulerAngles = SCNVector3(1.2, tilt.1, 0)
+            let path = SCNTorus(ringRadius: 2.0, pipeRadius: 0.012); path.materials = [material(NSColor(white: 1, alpha: 0.35), shiny: false)]
+            orbit.addChildNode(SCNNode(geometry: path))
+            let spin = SCNNode()
+            let e = SCNSphere(radius: 0.13); let em = SCNMaterial(); em.diffuse.contents = color(0x3b82f6); em.emission.contents = color(0x3b82f6); e.materials = [em]
+            let electron = SCNNode(geometry: e); electron.position = SCNVector3(2.0, 0, 0); spin.addChildNode(electron)
+            spin.runAction(.repeatForever(.rotateBy(x: 0, y: .pi * 2, z: 0, duration: 2.2 + Double(k) * 0.6)))
+            orbit.addChildNode(spin); root.addChildNode(orbit)
+        }
+        return root
     }
 
     private static func helix(strands: Int) -> SCNNode {

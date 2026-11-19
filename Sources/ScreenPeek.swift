@@ -17,9 +17,13 @@ enum ScreenPeek {
         let box = CGRect(x: max(0, xs.min()! - pad), y: max(0, ys.min()! - pad),
                          width: min(1, xs.max()! + pad) - max(0, xs.min()! - pad), height: min(1, ys.max()! + pad) - max(0, ys.min()! - pad))
         let w = CGFloat(image.width), h = CGFloat(image.height)
-        guard let crop = image.cropping(to: CGRect(x: box.minX * w, y: box.minY * h, width: box.width * w, height: box.height * h)) else { return nil }
+        let rect = CGRect(x: box.minX * w, y: box.minY * h, width: box.width * w, height: box.height * h)
+        guard let crop = image.cropping(to: rect) else { return nil }
+        // The picture includes the user's ink, so "what did I draw?" works and the model sees what they circled;
+        // text recognition reads the clean screenshot.
+        let inked = picture ? ScreenInk.shared.composite(image).cropping(to: rect) ?? crop : crop
         let peek = await Task.detached(priority: .userInitiated) {
-            Peek(note: describe(crop, picture: picture), image: picture ? jpegDataURL(crop) : nil)
+            Peek(note: describe(crop, picture: picture), image: picture ? jpegDataURL(inked) : nil)
         }.value
         Diagnostics.shared.record("local_peek_ms", category: peek.image != nil ? "picture" : peek.note == nil ? "empty" : "read",
                                   number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000))
@@ -55,7 +59,7 @@ enum ScreenPeek {
         let looks = (labels.results ?? []).filter { $0.confidence > 0.3 }.prefix(3).map { $0.identifier.replacingOccurrences(of: "_", with: " ") }
         if picture {
             // The model sees the picture; the exact text still helps it quote small print correctly.
-            return "They circled part of their screen; the circled area is the attached picture."
+            return "They circled or drew on part of their screen; the attached picture is that area, and the red ink in it is their own marking or drawing."
                 + (words.isEmpty ? "" : " Text recognized inside it: \"\(words)\".")
         }
         guard !words.isEmpty || !looks.isEmpty else { return nil }

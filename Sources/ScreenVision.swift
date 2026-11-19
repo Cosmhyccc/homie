@@ -20,7 +20,7 @@ final class ScreenVision {
             if failure.domain == SCStreamErrorDomain && failure.code == -3801 {
                 ScreenAccess.shared.captureDenied()
                 ScreenAccess.shared.showRecovery()
-                throw MusicFailure.message("macOS denied Pixie’s screen capture. Open Screen & System Audio Recording in Settings and check Pixie’s access. If its switch is already on, the saved permission is not working for this installed app; restarting alone may not resolve it.")
+                throw MusicFailure.message("macOS denied \(LocalBrain.appName)’s screen capture. Open Screen & System Audio Recording in Settings and check \(LocalBrain.appName)’s access. If its switch is already on, the saved permission is not working for this installed app; restarting alone may not resolve it.")
             }
             throw error
         }
@@ -112,7 +112,7 @@ final class ScreenVision {
         guard !usable else { return }
         if recovery == nil {
             let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 390, height: 210), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            panel.title = "Pixie screen access"
+            panel.title = "\(LocalBrain.appName) screen access"
             panel.level = .floating
             panel.isReleasedWhenClosed = false
             panel.contentView = NSHostingView(rootView: ScreenAccessRecovery(access: self))
@@ -127,8 +127,8 @@ private struct ScreenAccessRecovery: View {
     @ObservedObject var access: ScreenAccess
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Let Pixie see what you show her.").font(.headline)
-            Text("macOS denied this capture. Check Pixie in Screen & System Audio Recording. An enabled switch does not always mean the saved permission works for this installed app.")
+            Text("Let \(LocalBrain.appName) see what you show it.").font(.headline)
+            Text("macOS denied this capture. Check \(LocalBrain.appName) in Screen & System Audio Recording. An enabled switch does not always mean the saved permission works for this installed app.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Button("Open Settings") { access.openSettings() }.buttonStyle(.borderedProminent)
         }.padding(24).frame(width: 390, height: 210)
