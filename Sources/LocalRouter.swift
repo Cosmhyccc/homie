@@ -124,6 +124,17 @@ enum LocalRouter {
             guard !text.hasPrefix("go to") else { return nil }
             return LocalIntent(tool: "open_app", args: ["app": target], say: "\(display(target))'s open.")
         }
+        // "close it" / "minimize this window" / "make this full screen": the front window's own buttons.
+        let thisWindow = #"(?:it|this|that|this window|that window|the window|the front window)"#
+        if text.range(of: #"^(?:can you |please )?close "# + thisWindow + "$", options: .regularExpression) != nil {
+            return LocalIntent(tool: "window_action", args: ["action": "close"], say: "Closed.")
+        }
+        if text.range(of: #"^(?:can you |please )?(?:minimi[sz]e|hide) "# + thisWindow + "$", options: .regularExpression) != nil {
+            return LocalIntent(tool: "window_action", args: ["action": "minimize"], say: "Tucked away.")
+        }
+        if text.range(of: #"^(?:can you |please )?(?:make |go |put )?(?:"# + thisWindow + #" )?full ?screen(?: "# + thisWindow + ")?$", options: .regularExpression) != nil {
+            return LocalIntent(tool: "window_action", args: ["action": "fullscreen"], say: "Full screen.")
+        }
         if let target = capture(text, #"^(?:quit|close|kill) (?:the )?(?:app )?(.+?)(?: app)?$"#), isAppName(target),
            !["this", "it", "that", "the window", "window", "this window", "tab", "this tab", "the tab"].contains(target) {
             return LocalIntent(tool: "quit_app", args: ["app": target], say: "Closed \(display(target)).")
@@ -551,6 +562,7 @@ enum LocalTools {
         "open_website": "Open a website. url like https://example.com. browser empty unless the user names one.",
         "search_web": "Search the web or YouTube in the browser. site web or youtube. browser empty unless the user names one.",
         "quit_app": "Quit an app the user named.",
+        "window_action": "Close, minimize or full-screen the window the user is looking at.",
         "search_spotify": "Play music on Spotify: opens Spotify search for a song, artist or playlist. Default for play requests unless the user uses Apple Music.",
         "control_spotify": "Pause, resume, next, previous or show Spotify.",
         "switch_arc_tab": "Switch to an open Arc browser tab by its title.",
@@ -611,7 +623,7 @@ enum LocalTools {
     static let finished: [String: String] = [
         "create_reminder": "Added to your reminders.", "complete_reminder": "Checked off.", "schedule_alert": "Set.",
         "cancel_alert": "Cancelled.", "create_note": "Note's saved.", "mac_setting": "Done.", "take_screenshot": "Screenshot saved.",
-        "set_pixie_size": "Done.", "clear_screen_drawings": "Wiped.", "show_3d": "Here it is. Drag it to spin it.", "quit_app": "Closed it.", "search_web": "Pulled it up.",
+        "set_pixie_size": "Done.", "clear_screen_drawings": "Wiped.", "show_3d": "Here it is. Drag it to spin it.", "quit_app": "Closed it.", "window_action": "Done.", "search_web": "Pulled it up.",
         "open_website": "It's up.", "arrange_windows": "Arranged.", "play_apple_music": "Let's go.", "control_apple_music": "Done.",
         "control_spotify": "Done.", "set_music_volume": "Done."]
     /// An action needs a matching word in what the user actually said. Small models sometimes call a random tool
@@ -632,6 +644,7 @@ enum LocalTools {
         "mac_setting": "dark|light|wi-?fi|mute|volume|louder|quieter|softer|bright|dim|sound|loud|quiet",
         "take_screenshot": "screen ?shot|capture|snap|grab",
         "quit_app": "quit|close|kill|exit",
+        "window_action": "close|minimi|hide|full ?screen|window",
         "open_app": "open|launch|start|go to|pull up|bring up|show|switch|use|type|send|text|message",
         "open_website": "open|go to|pull up|bring up|show|website|site|\\.com|visit|read",
         "search_web": "search|google|look up|find|youtube|what|who|how|where|when|why",

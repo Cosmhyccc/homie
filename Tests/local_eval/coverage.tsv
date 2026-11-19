@@ -76,7 +76,7 @@ Quit Slack.	quit_app
 Close Safari.	quit_app
 Close Spotify.	quit_app
 Quit Xcode.	quit_app
-Close this window.	model
+Close this window.	window_action
 Close this tab.	model
 Open my last email.	model
 Open the file I was working on.	model

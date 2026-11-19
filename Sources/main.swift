@@ -19,6 +19,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastSpeaker: Bool?
     private var caption = ""
 
+    /// Version and build for bug reports.
+    @objc private func showAbout() { NSApp.activate(ignoringOtherApps: true); NSApp.orderFrontStandardAboutPanel(nil) }
+    /// Technical events only (no conversation text); the bug report template asks for this file.
+    @objc private func exportDiagnostics() { MainActor.assumeIsolated { NSApp.activate(ignoringOtherApps: true); Diagnostics.shared.export() } }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -26,6 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(withTitle: "Talk to homie (Fn)", action: #selector(toggle), keyEquivalent: "")
         menu.addItem(withTitle: "Make homie bigger / smaller", action: #selector(toggleGiant), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "About homie", action: #selector(showAbout), keyEquivalent: "")
+        menu.addItem(withTitle: "Export Diagnostics…", action: #selector(exportDiagnostics), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit homie", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.items.forEach { if $0.action != #selector(NSApplication.terminate(_:)) { $0.target = self } }

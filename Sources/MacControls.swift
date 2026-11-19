@@ -28,6 +28,8 @@ import ApplicationServices
         function("scroll_screen", "Scroll at a spot on the screen. Use the snapshot ID and normalized x/y from the latest look_at_screen. amount 1-10 (about three lines each).",
                  ["snapshot": ["type": "string"], "x": ["type": "number", "minimum": 0, "maximum": 1], "y": ["type": "number", "minimum": 0, "maximum": 1],
                   "direction": ["type": "string", "enum": ["up", "down", "left", "right"]], "amount": ["type": "integer", "minimum": 1, "maximum": 10]]),
+        function("window_action", "Close, minimize or full-screen the front window, the one the user is looking at. For close this, close it, close the window, minimize this, make this full screen. Never quits the app; unsaved-document prompts stay with the user.",
+                 ["action": ["type": "string", "enum": ["close", "minimize", "fullscreen"]]]),
         function("empty_trash", "Empty the Trash, only when the user explicitly asked. Call with confirmed false first: it returns how many items are in the Trash, then ask the user to confirm because this can't be undone. Call with confirmed true only after the user says yes.",
                  ["confirmed": ["type": "boolean"]]),
     ]
@@ -51,6 +53,7 @@ import ApplicationServices
                 case "take_screenshot": result = try await screenshot(arguments)
                 case "find_file": result = try await findFile(arguments)
                 case "empty_trash": result = try await emptyTrash(arguments)
+                case "window_action": result = try windowAction(arguments)
                 case "click_on_screen": result = try await clickOnScreen(arguments)
                 case "press_keys": result = try await pressKeys(arguments)
                 case "scroll_screen": result = try await scrollScreen(arguments)
@@ -163,6 +166,33 @@ import ApplicationServices
         var result: [String: Any] = ["status": "completed", "arranged": done]
         if !missing.isEmpty { result["not_open"] = missing }
         return result
+    }
+
+    /// Presses the front window's own close / minimize / full-screen button (the traffic lights), like a click would.
+    private func windowAction(_ arguments: [String: Any]) throws -> [String: Any] {
+        let action = arguments["action"] as? String ?? "close"
+        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
+            throw MusicFailure.message("Click the window you mean first, then ask again.")
+        }
+        let root = AXUIElementCreateApplication(app.processIdentifier)
+        var value: CFTypeRef?
+        guard (AXUIElementCopyAttributeValue(root, kAXFocusedWindowAttribute as CFString, &value) == .success
+               || AXUIElementCopyAttributeValue(root, kAXMainWindowAttribute as CFString, &value) == .success),
+              let window = value, CFGetTypeID(window) == AXUIElementGetTypeID() else {
+            throw MusicFailure.message("\(app.localizedName ?? "That app") has no window open.")
+        }
+        let ax = window as! AXUIElement
+        if action == "minimize" {
+            guard AXUIElementSetAttributeValue(ax, kAXMinimizedAttribute as CFString, kCFBooleanTrue) == .success else { throw MusicFailure.message("That window can't be minimized.") }
+            return ["status": "completed", "window": "minimized", "app": app.localizedName ?? ""]
+        }
+        let key = action == "fullscreen" ? kAXFullScreenButtonAttribute : kAXCloseButtonAttribute
+        var button: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(ax, key as CFString, &button) == .success, let button, CFGetTypeID(button) == AXUIElementGetTypeID(),
+              AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString) == .success else {
+            throw MusicFailure.message(action == "fullscreen" ? "That window can't go full screen." : "That window has no close button.")
+        }
+        return ["status": "completed", "window": action == "fullscreen" ? "fullscreen" : "closed", "app": app.localizedName ?? ""]
     }
 
     static func runningApp(_ name: String) -> NSRunningApplication? {

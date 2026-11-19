@@ -54,7 +54,7 @@ final class AppChoiceWindow: NSObject, NSWindowDelegate {
     private func present(question: String, waitingForVoice: Bool = false) {
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 460, height: 370),
                             styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
-        panel.title = demo ? "Pixie · App picker preview" : "Pixie"
+        panel.title = demo ? "\(LocalBrain.appName) · App picker preview" : LocalBrain.appName
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isReleasedWhenClosed = false

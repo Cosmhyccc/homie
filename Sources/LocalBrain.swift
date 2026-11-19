@@ -677,7 +677,9 @@ import CryptoKit
         if started == nil { head?.cancel() }
         head = nil
         let starts = wire.indices.filter { wire[$0]["role"] as? String == "user" }
-        if starts.count >= 6 { wire = Array(wire.suffix(from: starts[starts.count - 5])) }
+        // Long talks keep the first exchange (it carries the personal note: name, about, memories) and the last 4 turns.
+        // Trimming in one jump every few turns, not every turn, keeps the cached prompt prefix reusable.
+        if starts.count >= 8 { wire = Array(wire[..<starts[1]]) + Array(wire[starts[starts.count - 4]...]) }
         wire.append(started?.message ?? userMessage(text))
         screenNote = nil; screenImage = nil
         Diagnostics.shared.record("local_head_start", category: started == nil ? "none" : "used")

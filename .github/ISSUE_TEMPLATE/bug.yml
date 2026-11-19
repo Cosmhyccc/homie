@@ -1,27 +1,60 @@
-name: Bug
-description: homie did something wrong or slow
+name: Bug report
+description: homie did something wrong, slow, or crashed
 labels: [bug]
 body:
-  - type: textarea
-    id: said
+  - type: markdown
     attributes:
-      label: What you said
-      description: The exact words if you remember them. With `defaults write local.homie.app pixie.local.devLog -bool true`, homie keeps a private log of what it heard on your Mac.
+      value: |
+        Thanks for helping make homie better. A diagnostics file helps the most: click homie in the menu bar → **Export Diagnostics…** and drag the file into the box below. It has technical events and errors only, never what you said, recordings or screenshots.
+  - type: input
+    id: mac
+    attributes:
+      label: Mac model
+      placeholder: "MacBook Air M2"
+    validations: {required: true}
+  - type: dropdown
+    id: ram
+    attributes:
+      label: Memory (RAM)
+      description: Apple menu → About This Mac.
+      options: ["8 GB", "16 GB", "18 GB", "24 GB", "32 GB or more"]
+    validations: {required: true}
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 26.1"
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: homie version
+      description: Click homie in the menu bar → **About homie**.
+      placeholder: "1.0.0 (1)"
+    validations: {required: true}
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, and what you said to homie (exact words if you remember them).
+      placeholder: |
+        1. Pressed fn
+        2. Said "set a timer for 10 minutes"
+        3. ...
     validations: {required: true}
   - type: textarea
     id: happened
     attributes:
       label: What happened vs. what you expected
     validations: {required: true}
-  - type: input
-    id: mac
+  - type: textarea
+    id: diagnostics
     attributes:
-      label: Mac and macOS
-      placeholder: "M2 Air, 8 GB, macOS 26.1"
-    validations: {required: true}
+      label: Diagnostics file
+      description: Menu bar → homie → **Export Diagnostics…**, then drag the .txt file here.
   - type: textarea
     id: bench
     attributes:
-      label: Bench output (optional)
-      description: Output of `bash Tests/local_eval/bench.sh` helps a lot with speed issues.
+      label: Bench output (optional, for speed issues)
+      description: Output of `bash Tests/local_eval/bench.sh`. Building from source? `defaults write local.homie.app pixie.local.devLog -bool true` also keeps a private log of what homie heard.
       render: text

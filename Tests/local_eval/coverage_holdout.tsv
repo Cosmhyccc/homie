@@ -44,7 +44,7 @@ What reminders do I have?	read_reminders
 Show me my to-dos.	read_reminders
 Take a screen shot.	take_screenshot
 Make yourself huge.	set_pixie_size
-Close the window.	model
+Close the window.	window_action
 Turn the music up.	model
 What's the weather in Austin?	model
 Play the new Drake album.	model

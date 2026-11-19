@@ -250,13 +250,25 @@ final class MusicController {
         try JSONDecoder().decode(MusicTrack?.self, from: await musicCommand("snapshot"))
     }
 
+    private var lastRefresh = Date.distantPast
+    private var playerInfo: NSObjectProtocol?
     private func startMonitoring() {
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
+        // Music announces play/pause/track changes itself; react at once instead of waiting for the next poll.
+        if playerInfo == nil {
+            playerInfo = DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.Music.playerInfo"), object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refresh(force: true) }
+            }
+        }
     }
 
-    private func refresh() {
+    /// Each check runs an AppleScript, so poll every second only while a song plays (the progress bar moves);
+    /// paused or idle, every 10 s is plenty since Music's own notification covers changes.
+    private func refresh(force: Bool = false) {
         guard !refreshing, !busy else { return }
+        if !force, track?.playing != true, Date().timeIntervalSince(lastRefresh) < 10 { return }
+        lastRefresh = Date()
         guard !NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").isEmpty else {
             publish(nil); timer?.invalidate(); timer = nil; return
         }

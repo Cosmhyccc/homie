@@ -89,6 +89,16 @@ enum ScreenMarks {
         let want = core(target)
         let root = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetMessagingTimeout(root, 0.3)
+        // Window buttons (the traffic lights) are often unlabeled: ask the focused window for them directly.
+        let windowButton: String? = ["close", "quit", "exit", "x", "red"].contains(want) ? kAXCloseButtonAttribute
+            : ["minimize", "minimise", "yellow"].contains(want) ? kAXMinimizeButtonAttribute
+            : ["full screen", "fullscreen", "maximize", "maximise", "zoom", "expand", "green"].contains(want) ? kAXFullScreenButtonAttribute : nil
+        if let windowButton {
+            var window: CFTypeRef?, button: CFTypeRef?
+            if AXUIElementCopyAttributeValue(root, kAXFocusedWindowAttribute as CFString, &window) == .success, let window,
+               AXUIElementCopyAttributeValue(window as! AXUIElement, windowButton as CFString, &button) == .success, let button,
+               let rect = frame(of: button as! AXUIElement, on: screen) { return rect }
+        }
         var start: [AXUIElement] = [root]
         var windows: CFTypeRef?
         if AXUIElementCopyAttributeValue(root, kAXWindowsAttribute as CFString, &windows) == .success, let list = windows as? [AXUIElement], !list.isEmpty { start = list }
@@ -101,19 +111,7 @@ enum ScreenMarks {
             let (node, depth) = queue[cursor]; cursor += 1
             let names = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute].map { text(node, $0).lowercased() }.filter { !$0.isEmpty && $0.count < 80 }
             if names.contains(where: { $0 == want || ($0.contains(want) && want.count >= 4) }) {
-                var p: CFTypeRef?, s: CFTypeRef?
-                if AXUIElementCopyAttributeValue(node, kAXPositionAttribute as CFString, &p) == .success,
-                   AXUIElementCopyAttributeValue(node, kAXSizeAttribute as CFString, &s) == .success, let p, let s {
-                    var origin = CGPoint.zero, size = CGSize.zero
-                    AXValueGetValue(p as! AXValue, .cgPoint, &origin); AXValueGetValue(s as! AXValue, .cgSize, &size)
-                    guard size.width > 2, size.height > 2 else { continue }
-                    // AX: top-left origin at the primary display. Convert to this screen's normalized top-left space.
-                    let primaryTop = NSScreen.screens.first?.frame.maxY ?? screen.frame.maxY
-                    let top = primaryTop - screen.frame.maxY
-                    let rect = CGRect(x: (origin.x - screen.frame.minX) / screen.frame.width, y: (origin.y - top) / screen.frame.height,
-                                      width: size.width / screen.frame.width, height: size.height / screen.frame.height)
-                    if rect.intersects(CGRect(x: 0, y: 0, width: 1, height: 1)) { return rect }
-                }
+                if let rect = frame(of: node, on: screen) { return rect }
             }
             guard depth < 16 else { continue }
             var children: CFTypeRef?
@@ -122,6 +120,27 @@ enum ScreenMarks {
             }
         }
         return nil
+    }
+
+    /// An accessibility element's frame in this screen's normalized top-left space (AX uses the primary display's top-left).
+    @MainActor static func frame(of node: AXUIElement, on screen: NSScreen) -> CGRect? {
+        var p: CFTypeRef?, s: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(node, kAXPositionAttribute as CFString, &p) == .success,
+              AXUIElementCopyAttributeValue(node, kAXSizeAttribute as CFString, &s) == .success, let p, let s else { return nil }
+        var origin = CGPoint.zero, size = CGSize.zero
+        AXValueGetValue(p as! AXValue, .cgPoint, &origin); AXValueGetValue(s as! AXValue, .cgSize, &size)
+        guard size.width > 2, size.height > 2 else { return nil }
+        let primaryTop = NSScreen.screens.first?.frame.maxY ?? screen.frame.maxY
+        let top = primaryTop - screen.frame.maxY
+        let rect = CGRect(x: (origin.x - screen.frame.minX) / screen.frame.width, y: (origin.y - top) / screen.frame.height,
+                          width: size.width / screen.frame.width, height: size.height / screen.frame.height)
+        return rect.intersects(CGRect(x: 0, y: 0, width: 1, height: 1)) ? rect : nil
+    }
+
+    /// "the close button", "settings icon": the user means a control, so real controls win over matching text.
+    static func meansControl(_ target: String) -> Bool {
+        let words = Set(target.lowercased().split(separator: " ").map(String.init))
+        return !words.isDisjoint(with: ["button", "icon", "tab", "field", "toggle", "switch", "checkbox", "menu", "slider", "dropdown"])
     }
 
     // MARK: Marking
@@ -149,7 +168,9 @@ enum ScreenMarks {
                     let xs = userMarks.map(\.x), ys = userMarks.map(\.y)
                     rect = CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
                 } else {
-                    rect = find(mark.target, in: lines) ?? control(mark.target, on: screen)
+                    rect = meansControl(mark.target)
+                        ? control(mark.target, on: screen) ?? find(mark.target, in: lines)
+                        : find(mark.target, in: lines) ?? control(mark.target, on: screen)
                 }
                 guard let rect else { missing.append(mark.target); continue }
                 draw(mark, around: rect, snapshot: snapshot, aspect: Double(screen.frame.width / screen.frame.height))

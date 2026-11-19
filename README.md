@@ -103,6 +103,17 @@ On first launch homie downloads its brain once. Macs with **8 GB** automatically
 | 30-request accuracy eval | 30/30 | 26/30 |
 | Picked when | more than 8 GB of memory | 8 GB |
 
+### Uninstall
+
+Quit homie from its menu, drag it to the Trash, then remove what it downloaded (~3 GB) and what it learned:
+
+```bash
+rm -rf ~/Library/Application\ Support/Pixie/Local   # brain models, prompt cache, memory.json
+rm -rf ~/.cache/fluidaudio                         # voice model
+```
+
+Permissions you granted (microphone, screen, accessibility) can be removed in System Settings → Privacy & Security.
+
 ## Measure it on your Mac
 
 ```bash
