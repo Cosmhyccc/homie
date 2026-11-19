@@ -150,6 +150,8 @@ import Foundation
         precondition(LocalRouter.endpointDelay("open spotify and") == 1.2)
         precondition(LocalRouter.endpointDelay("play") == 1.2)
         precondition(LocalRouter.endpointDelay("what is this") == 0.6)
+        precondition(LocalRouter.endpointDelay("google best tacos near me") == 0.35)
+        precondition(LocalRouter.endpointDelay("tell me") == 1.2)
         // Pointing at the screen
         precondition(LocalRouter.intent("circle this")?.args["marks"] as? String == "circle it")
         precondition(LocalRouter.intent("underline that")?.args["marks"] as? String == "underline it")

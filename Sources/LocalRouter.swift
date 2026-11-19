@@ -194,7 +194,9 @@ enum LocalRouter {
         let words = text.split(separator: " ").map(String.init)
         if ["this", "that", "these", "those", "it"].contains(last), words.count >= 2,
            ["is", "are", "was", "what's", "whats", "who's", "whos", "about", "read", "explain", "translate", "mean", "means", "fix"].contains(words[words.count - 2]) { return 0.6 }
-        if dangling.contains(last) { return 1.2 }
+        // "google best tacos near me", "turn it up for me": a complete instant command can end on a word that usually dangles.
+        let completesCommand = ["me", "it", "this", "that", "more", "some", "up", "on"].contains(last) && (intent(partial, music: .spotify) ?? intent(partial, music: nil)) != nil
+        if dangling.contains(last), !completesCommand { return 1.2 }
         if let fast = intent(partial, music: .spotify) ?? intent(partial, music: nil) {
             // "what's on my calendar" may still get a "tomorrow": give read-outs without a day the normal wait.
             if ["read_calendar", "read_reminders", "list_alerts"].contains(fast.tool), !["today", "tomorrow", "tonight"].contains(last) { return 0.6 }

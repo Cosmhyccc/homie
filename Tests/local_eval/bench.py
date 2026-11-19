@@ -55,6 +55,14 @@ def first_speakable(text):
     if first is None: first, kind = done, said.strip() or "Done."
     return first, kind, done
 
+def first_phrase(line):
+    """The first phrase PhraseChunker would voice: a sentence end, a comma after 18+ characters, or a natural joiner."""
+    m = re.search(r"^(.+?[.!?])\s", line + " ")
+    c = re.search(r"^(.{18,}?[,;:])\s", line)
+    j = re.search(r"^(.{12,}?) (that|where|which|because|and|but|so|when|while|who|since|if|though|although|until) ", line, re.I)
+    options = [x.group(1) for x in (m, c, j) if x]
+    return min(options, key=len) if options else line
+
 def pct(xs, p): xs = sorted(xs); return xs[min(len(xs) - 1, int(round(p / 100 * (len(xs) - 1))))]
 
 def main():
@@ -68,7 +76,7 @@ def main():
             r = route(text); assert r["tool"] is not None, text
             t0 = time.time(); route(text); router_s = time.time() - t0
             line = READOUT.get(text) or r["say"] or "It's 3:12 PM."
-            voice = tts(line)
+            voice = tts(first_phrase(line))   # homie speaks read-outs phrase by phrase (speakLine → PhraseChunker)
             rows.append({"lane": "instant", "text": text, "endpoint": r["endpoint"], "router": router_s, "voice": voice, "first_audio": r["endpoint"] + router_s + voice})
         for text in BRAIN:
             r = route(text); assert r["tool"] is None, text
