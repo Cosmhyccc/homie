@@ -24,8 +24,10 @@ enum ChatModelChoice: String, Codable, CaseIterable, Sendable {
 /// The app plugs real brains in at launch. Each takes OpenAI-style messages ([role, content]) and yields text deltas.
 /// Keeping these as plain closures means the chat UI never depends on LocalBrain, LiveSession or the gateway directly.
 @MainActor enum ChatBackends {
-    typealias Stream = ([[String: String]]) -> AsyncThrowingStream<String, Error>
+    typealias Stream = ([[String: Any]]) -> AsyncThrowingStream<String, Error>
     static var local: Stream?
+    /// True when the local brain loaded its vision add-on, so attached pictures can go to it as pictures.
+    static var localVision: () -> Bool = { false }
     static var max: Stream?
     static func stream(_ model: ChatModelChoice) -> Stream? { model == .homie ? local : max }
 }
@@ -41,26 +43,51 @@ enum ChatError: LocalizedError {
 }
 
 enum ChatPrompt {
-    static func system(name: String) -> String {
+    static func system(name: String, vision: Bool = false) -> String {
         """
         You are homie, a friendly AI that lives on the user's Mac.\(name.isEmpty ? "" : " The user's name is \(name).")
         This is a text chat: you can talk and help think, but you can't take actions on the Mac from here.
         Be warm, direct and brief. Answer in a few sentences unless the user asks for more.
         Use light markdown only when it helps: short lists, **bold**, `code`.
+        The user can attach files. You get the text read from them on this Mac: a PDF's text, a text file, or for a picture
+        the words recognized in it plus a rough label of what it shows.
+        \(vision ? "Pictures attached to their latest message come as the image itself too, so you can look at them. Pictures from earlier messages are only their recognized text." : "You can't see the picture itself, so don't describe details you weren't given.")
         """
     }
 
     /// System prompt plus the most recent turns that fit the model's budget. Never drops the newest message.
-    static func messages(_ history: [ChatMessage], model: ChatModelChoice, name: String) -> [[String: String]] {
-        var kept: [[String: String]] = [], used = 0
-        for message in history.reversed() where !message.text.isEmpty {
-            used += message.text.count
+    /// With `vision`, the newest user message carries up to `maxPictures` attached images as image parts; everything else is text.
+    static let maxPictures = 2
+    static func messages(_ history: [ChatMessage], model: ChatModelChoice, name: String, vision: Bool = false) -> [[String: Any]] {
+        var kept: [[String: Any]] = [], used = 0
+        for message in history.reversed() where !message.text.isEmpty || message.attachments != nil {
+            let content = self.content(message)
+            used += content.count
             // Local re-reads the thread each turn, so keep it to the last ~20 messages.
             if !kept.isEmpty && (used > model.historyBudget || (model == .homie && kept.count >= 20)) { break }
-            kept.append(["role": message.role.rawValue, "content": message.text])
+            let pictures = vision && kept.isEmpty && message.role == .user
+                ? (message.attachments ?? []).compactMap { $0.kind == .image ? $0.picture : nil }.prefix(maxPictures) : []
+            if pictures.isEmpty { kept.append(["role": message.role.rawValue, "content": content]) }
+            else {
+                let parts: [[String: Any]] = pictures.map { ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64," + $0.base64EncodedString()]] }
+                kept.append(["role": message.role.rawValue, "content": parts + [["type": "text", "text": content]]])
+            }
         }
-        return [["role": "system", "content": system(name: name)]] + kept.reversed()
+        return [["role": "system", "content": system(name: name, vision: vision)]] + kept.reversed()
     }
+
+    /// A message as the brain reads it: what they typed, then each attachment's text, labelled.
+    static func content(_ message: ChatMessage) -> String {
+        var parts = message.text.isEmpty ? [] : [message.text]
+        for file in message.attachments ?? [] {
+            let what = file.kind == .pdf ? "PDF" + (file.pages.map { ", \($0) page\($0 == 1 ? "" : "s")" } ?? "") : file.kind == .image ? "image" : "file"
+            parts.append("[Attached \(what): \(file.name)\(file.truncated ? " (only the first part fit)" : "")]\n" + file.text)
+        }
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// Per-file text budget, so a couple of attachments still leave room for the conversation.
+    static func attachmentBudget(_ model: ChatModelChoice) -> Int { model.historyBudget / 2 }
 }
 
 /// One open conversation: sends, streams, stops. UI updates are batched (~20/s) so long replies stay smooth.
@@ -99,18 +126,18 @@ enum ChatPrompt {
     }
 
     /// Sends a message. If a reply is still streaming, it's stopped (and kept as "Stopped") first.
-    func send(_ raw: String) {
+    func send(_ raw: String, attachments: [ChatAttachment] = []) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || !attachments.isEmpty else { return }
         if streaming { stop() }
-        if thread.messages.isEmpty { thread.title = Self.title(from: text) }
-        thread.messages.append(ChatMessage(role: .user, text: text))
+        if thread.messages.isEmpty { thread.title = Self.title(from: text.isEmpty ? attachments[0].name : text) }
+        thread.messages.append(ChatMessage(role: .user, text: text, attachments: attachments))
         let history = thread.messages
         let reply = ChatMessage(role: .assistant, text: "")
         thread.messages.append(reply)
         thread.updated = Date()
         guard let backend = ChatBackends.stream(thread.model) else { activeReply = reply.id; finish(note: ChatError.unavailable(thread.model).localizedDescription); return }
-        let wire = ChatPrompt.messages(history, model: thread.model, name: name())
+        let wire = ChatPrompt.messages(history, model: thread.model, name: name(), vision: thread.model == .homie && ChatBackends.localVision())
         activeReply = reply.id
         streaming = true
         let id = reply.id

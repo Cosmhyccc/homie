@@ -9,7 +9,34 @@ struct ChatMessage: Codable, Identifiable, Equatable, Sendable {
     let date: Date
     /// Set when a reply failed or was stopped, so the UI can say so instead of showing a half answer as complete.
     var note: String?
-    init(role: Role, text: String, note: String? = nil) { id = UUID(); self.role = role; self.text = text; date = Date(); self.note = note }
+    /// Files the user attached (user messages only). Optional so chats saved before attachments still load.
+    var attachments: [ChatAttachment]?
+    init(role: Role, text: String, note: String? = nil, attachments: [ChatAttachment]? = nil) {
+        id = UUID(); self.role = role; self.text = text; date = Date(); self.note = note
+        self.attachments = attachments?.isEmpty == true ? nil : attachments
+    }
+}
+
+/// A file attached to a chat message. Everything here was read on this Mac; the file itself is never uploaded.
+struct ChatAttachment: Codable, Identifiable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable { case image, pdf, text }
+    let id: UUID
+    let name: String
+    let kind: Kind
+    /// What the brain reads: PDF text, text recognized in an image, or the file's own text. Already trimmed to fit.
+    let text: String
+    /// Small JPEG preview (an image, or a PDF's first page) for the chat bubble.
+    let preview: Data?
+    var pages: Int?
+    /// True when only the first part of a long file fit.
+    var truncated: Bool
+    /// The picture for a vision brain (JPEG, longest side 1024). Memory only: it rides along with the message it was
+    /// sent in and isn't saved, since older turns go to the brain as text anyway.
+    var picture: Data?
+    init(name: String, kind: Kind, text: String, preview: Data? = nil, pages: Int? = nil, truncated: Bool = false, picture: Data? = nil) {
+        id = UUID(); self.name = name; self.kind = kind; self.text = text; self.preview = preview; self.pages = pages; self.truncated = truncated; self.picture = picture
+    }
+    private enum CodingKeys: String, CodingKey { case id, name, kind, text, preview, pages, truncated }
 }
 
 /// A whole conversation, stored as one small JSON file.

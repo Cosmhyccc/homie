@@ -5,7 +5,7 @@
 # homie
 
 **A voice buddy in your Mac's notch that runs entirely on your Mac.**<br>
-Press <kbd>fn</kbd>, talk. It sets timers, plays music, reads your calendar, flips dark mode, reads what you circle on screen, and talks back. The brain, the voice and your memories never leave the computer. Works in airplane mode.
+Press <kbd>fn</kbd>, talk. It sets timers, plays music, reads your calendar, flips dark mode, looks at what you circle on screen, points things out on your screen, shows 3D models, and talks back. The brain, the voice and your memories never leave the computer. Works in airplane mode.
 
 [![tests](../../actions/workflows/tests.yml/badge.svg)](../../actions/workflows/tests.yml)
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-black?logo=apple)
@@ -44,6 +44,8 @@ flowchart LR
 | **Head start.** At 0.25 s of silence the model starts on what you've said so far; if you keep talking it restarts. | ~0.35 s off every brain turn |
 | **Never re-read the instructions.** The model's state after reading the ~3,300-token prompt is saved to disk, ending exactly at the user-turn marker, so a question only *adds* tokens. Requests use sorted JSON keys, so the prompt text is byte-identical on every launch. | Launch-ready in 0.12 s; a question re-reads ~45 tokens instead of 3,300 (7–19 s) |
 | **Talk early.** The first spoken phrase breaks at a natural joint ("Did you know │ that there's a black hole…"). | p90 first sound 1.49 → 0.88 s |
+| **Point, don't draw.** homie says *what* to mark ("circle Send"); Apple's on-device text recognition and the Accessibility tree find *where*. The model never writes coordinates. | Exact circles, underlines and arrows in ~0.5 s |
+| **3D from one tool call.** "Show me a water molecule" picks a SceneKit scene and fills in a few words; the model never writes geometry. | Molecules, math surfaces, the planets in < 0.3 s |
 | **Small-model guard rails.** An action needs a matching word in what you said; leaked tool-call text is never spoken; invented IDs are redirected. | "tell me a joke" no longer plays a song |
 
 ## What didn't work
@@ -55,6 +57,7 @@ We measured these, and they're not in the app:
 - **Showing the model only the tools relevant to each request** is the textbook trick, and it backfires on a laptop: a new tool list invalidates the prompt cache, which costs 4–17 s. One stable list wins.
 - **A `remember` tool:** the model called it 1 time in 5, and once *said* "I'll remember that" without doing it. homie learns from phrasing instead, plus a 0.2–0.7 s look-back after each chat.
 - **The 2B model with the 4B's prompt** scored 16/30 and kept saying "Got it!" without acting. Plain rules plus the grounding check brought it to 26/30.
+- **Freehand drawing on a 4B model.** Even with worked examples it drew a T-Rex as a green box with a face, in 13–20 s. homie points at your screen instead.
 - **Moving the voice model's crashing stage off the CPU:** FluidAudio v3 doesn't allow it ([FluidAudio#1172](https://github.com/FluidInference/FluidAudio/issues/1172)). homie restarts the voice and rephrases instead.
 
 The full experiment log, with numbers, is in [docs/writeups/homie-bench.md](docs/writeups/homie-bench.md).
@@ -65,11 +68,11 @@ Everything runs on your Mac. homie makes these network requests and no others:
 
 | When | What | Where |
 |---|---|---|
-| Once, on first launch | The model (1.3 or 2.7 GB, pinned commit, SHA-256 checked) and the voice model (~390 MB) | Hugging Face |
+| Once, on first launch | The model (1.3 or 2.7 GB), its vision add-on on 16 GB+ Macs (672 MB), all pinned and SHA-256 checked, and the voice model (~390 MB) | Hugging Face |
 | You ask to play a song | Song lookup and album art | Apple's iTunes Search API |
 | You ask to open a site or search | Your browser opens it | wherever you asked |
 
-No accounts, no analytics. Speech recognition, dictation (<kbd>fn</kbd>+<kbd>⌃</kbd>) and screen reading (hold <kbd>fn</kbd> and circle something) all use Apple's on-device frameworks. Verify it yourself:
+No accounts, no analytics. Speech recognition, dictation (<kbd>fn</kbd>+<kbd>⌃</kbd>) and screen reading (hold <kbd>fn</kbd> and circle something) all run on your Mac: the circled area goes to the local model as a picture and never leaves the computer. Verify it yourself:
 
 ```bash
 lsof -nP -i -a -c llama-server     # the brain only listens on 127.0.0.1
@@ -114,7 +117,9 @@ Open a PR with your `Tests/local_eval/results/*.json` and we'll add your chip to
 | [`LocalBrain.swift`](Sources/LocalBrain.swift) | Listening, end-of-speech detection, head start, the model loop, speaking, memory, prompt cache |
 | [`LocalRouter.swift`](Sources/LocalRouter.swift) | The instant lane, read-outs, model-call repairs, the grounding check |
 | [`LocalMemory.swift`](Sources/LocalMemory.swift) | What homie learns about you, and when you're around |
-| [`ScreenPeek.swift`](Sources/ScreenPeek.swift) | Reading what you circle (Apple Vision OCR + image labels) |
+| [`ScreenPeek.swift`](Sources/ScreenPeek.swift) | Looking at what you circle (a picture for the vision add-on, plus OCR) |
+| [`ScreenMarks.swift`](Sources/ScreenMarks.swift) | Pointing at your screen: finds words (OCR) and buttons (Accessibility), then circles/underlines/arrows them |
+| [`HomieCanvas.swift`](Sources/HomieCanvas.swift) | The 3D canvas (SceneKit): molecules, math surfaces, planets, bars |
 | [`HomieModels.swift`](Sources/HomieModels.swift) | Bundled engines and the checksum-verified model download |
 | `*Controller.swift`, [`MacControls.swift`](Sources/MacControls.swift) | The tools: music, apps, windows, files, reminders, timers, settings |
 | [`LocalVoice/`](LocalVoice) | The voice helper: Kokoro-82M on the Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) |
@@ -124,7 +129,7 @@ The architecture deep dive is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Known issues
 
 - The voice model crashes on ~5% of exact sentences inside Core ML ([FluidAudio#1172](https://github.com/FluidInference/FluidAudio/issues/1172)). homie restarts it (~1.3 s) and rephrases.
-- Screen reading understands text and rough image labels, not full pictures yet.
+- 8 GB Macs (homie lite) skip the vision add-on, so circling there reads text and rough labels only.
 - Spotify opens search results but doesn't press play; Apple Music plays directly.
 
 ## Contributing

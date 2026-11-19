@@ -55,7 +55,7 @@ final class GiantEyesView: NSView {
         for center in [bounds.width * 0.29, bounds.width * 0.71] {
             let left = round(center - 2.5 * pixel)
             let bottom = round(midY - CGFloat(rows) * pixel / 2)
-            NSColor.white.setFill()
+            HomieEyes.current.ns.setFill()
             for (row, cells) in silhouette.enumerated() {
                 for (column, cell) in cells.enumerated() where cell == "1" {
                     NSRect(x: left + CGFloat(column) * pixel,

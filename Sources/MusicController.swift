@@ -102,7 +102,8 @@ final class MusicController {
             guard operation == id else { throw CancellationError() }
             if try await pressSongPlay(catalogID: match.trackId, title: match.trackName) { pressed = true; break }
             // Music sometimes ignores the link while another page is showing; ask once more.
-            if attempt == 12 { NSWorkspace.shared.open(url) }
+            // Saif's test: the first link was ignored and the row only appeared ~1 s after the attempt-12 re-open (7 s total).
+            if attempt == 4 || attempt == 14 { NSWorkspace.shared.open(url) }
             try await Task.sleep(for: .milliseconds(200))
         }
         guard pressed else { throw MusicFailure.message("I opened the song, but couldn’t find its Play button. Make sure Apple Music is signed in and the song is available.") }

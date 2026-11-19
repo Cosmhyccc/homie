@@ -36,6 +36,8 @@ import CryptoKit
     var onInputLevel: ((Float) -> Void)?
     var onOutputLevel: ((Float) -> Void)?
     var tools: [[String: Any]] = []
+    /// Started during onboarding, before the app's voice session exists; LiveSession adopts it so nothing loads twice.
+    static var prewarmed: LocalBrain?
     var context: () -> [String: String] = { [:] }
     private(set) var phase: Phase = .idle
 
@@ -76,6 +78,8 @@ import CryptoKit
         }
     }
     private var qwenReady = false
+    /// The brain was started with its vision add-on, so circled areas can go to it as a picture.
+    private(set) var hasVision = false
     private var voiceReady = false
     var voiceName: String { UserDefaults.standard.string(forKey: "kokoroVoice") ?? "af_heart" }
 
@@ -85,6 +89,33 @@ import CryptoKit
     private let pcm = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 24000, channels: 1, interleaved: false)!
     private var graphReady = false
     private var tapped = false
+    /// One recognizer for the app's life: creating it (and its first recognition) loads Apple's on-device speech model.
+    private lazy var recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    /// The mic route, speech model and audio graph are set up, so a fn press only has to start listening.
+    private(set) var inputPrepared = false
+    /// Brain, voice and mic are all ready: the first fn press goes straight to listening.
+    var ready: Bool { qwenReady && voiceReady && inputPrepared }
+
+    /// Everything the first fn press would otherwise pay for, done ahead of time (onboarding's "Let's try it", app launch
+    /// in homie mode). Never prompts for permission: it only runs when Microphone and Speech are already allowed.
+    func prepareInput() {
+        warm()
+        guard !inputPrepared, AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
+              SFSpeechRecognizer.authorizationStatus() == .authorized, let recognizer, recognizer.supportsOnDeviceRecognition else { return }
+        let started = ProcessInfo.processInfo.systemUptime
+        do { try ensureEngine() } catch { return }
+        // A tiny silent recognition loads the on-device speech model now instead of on the first question.
+        let req = SFSpeechAudioBufferRecognitionRequest(); req.requiresOnDeviceRecognition = true
+        if let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1), let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1600) {
+            silence.frameLength = 1600; req.append(silence)
+        }
+        req.endAudio()
+        var task: SFSpeechRecognitionTask?
+        task = recognizer.recognitionTask(with: req) { _, _ in }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { task?.cancel() }
+        inputPrepared = true
+        Diagnostics.shared.record("local_input_prewarm_ms", number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000))
+    }
 
     // Listening
     private var request: SFSpeechAudioBufferRecognitionRequest?
@@ -147,8 +178,13 @@ import CryptoKit
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: support.path)
         if qwen == nil, HomieModels.installed(Self.tier) == nil { download() }
         if qwen == nil, let brain = HomieModels.installed(Self.tier) {
+            // Vision (full tier): circled areas reach the model as a picture, capped at 256 image tokens (~0.7 s to read).
+            // Not downloaded yet: fetch it in the background; the next launch picks it up.
+            let vision = HomieModels.installedVision(Self.tier)
+            if vision == nil, Self.tier == .full, !downloader.running { downloader.fetch(HomieModels.vision) { _ in } }
+            hasVision = vision != nil
             qwen = launch(HomieModels.llamaServer,
-                          ["-m", brain.path,  // no --mmproj: vision is unused locally for now, saves ~0.7 GB RAM
+                          ["-m", brain.path] + (vision.map { ["--mmproj", $0.path, "--image-max-tokens", "256"] } ?? []) + [
                            "--host", "127.0.0.1", "--port", "19877", "--api-key-file", "KEY", "-c", Self.tier.context, "-np", "1", "--reasoning", "off", "--jinja", "--slot-save-path", Self.cacheFolder.path],
                           key: qwenKey, keyFile: support.appendingPathComponent("qwen-key.txt"), log: support.appendingPathComponent("qwen.log")) { [weak self] in self?.qwenReady = false; self?.qwen = nil }
             poll(qwenURL.appendingPathComponent("health"), key: qwenKey) { [weak self] in self?.qwenReady = true; self?.prime() }
@@ -194,7 +230,7 @@ import CryptoKit
     /// Text chat on the local brain: no tools, one reply at a time, and never at the same time as a voice turn.
     /// The brain has one slot holding voice's saved instructions; after the reply they're restored (0.1–0.4 s),
     /// so the next Fn is still instant. Yields text as it streams.
-    func chat(messages: [[String: String]], maxTokens: Int = 800) -> AsyncThrowingStream<String, Error> {
+    func chat(messages: [[String: Any]], maxTokens: Int = 800) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task { @MainActor [weak self] in
                 guard let self else { continuation.finish(); return }
@@ -372,25 +408,35 @@ import CryptoKit
         set(.waking, "Waking up on your Mac…")
         let id = UUID(); listenID = id
         Task {
-            let mic = await AVCaptureDevice.requestAccess(for: .audio)
-            let speech = await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) } }
+            // Each wake stage is timed: Saif saw an 8 s "Waking up" with the brain and voice already warm (Nov 18, onboarding).
+            var mark = ProcessInfo.processInfo.systemUptime
+            func stage(_ name: String) {
+                let now = ProcessInfo.processInfo.systemUptime
+                Diagnostics.shared.record("local_wake_stage_ms", category: name, number: Int((now - mark) * 1000)); mark = now
+            }
+            // Read the saved answers first: asking again (requestAuthorization) goes through the speech daemon and took
+            // 8.6 s right after launch in Saif's onboarding test, even though both were already allowed.
+            let mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized ? true : await AVCaptureDevice.requestAccess(for: .audio)
+            let speech = SFSpeechRecognizer.authorizationStatus() == .authorized ? .authorized
+                : await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) } }
+            stage("auth")
             guard listenID == id, phase == .waking else { return }
             guard mic, speech == .authorized else { fail("Allow Microphone and Speech Recognition for \(Self.appName) in System Settings."); return }
-            // First run: wait for the brain download, however long it takes, showing progress.
-            while downloader.running {
-                try? await Task.sleep(for: .milliseconds(500)); guard listenID == id, phase == .waking else { return }
-            }
-            if let downloadError, HomieModels.installed(Self.tier) == nil { fail(downloadError); return }
+            // Listen as soon as the voice is up. The brain may still be downloading (a new user's first minutes) or
+            // loading: instant commands (dark mode, timers, music, settings) run without it, and anything that needs it
+            // gets an honest "still downloading, 60%" instead of a hang.
             // A text chat reply is using the brain: let it finish (it puts voice's instructions back after).
             while chatting != nil {
                 try? await Task.sleep(for: .milliseconds(100)); guard listenID == id, phase == .waking else { return }
             }
-            for _ in 0..<120 where !(qwenReady && voiceReady) {
+            for _ in 0..<60 where !voiceReady {
                 try? await Task.sleep(for: .milliseconds(500)); guard listenID == id, phase == .waking else { return }
             }
-            guard qwenReady else { fail("homie couldn't start its brain. Quit and reopen \(Self.appName) to try again."); return }
+            stage("ready")
             do { try ensureEngine() } catch { fail("No working microphone was found."); return }
+            stage("engine")
             listen(prefill: [])
+            stage("listen")
         }
     }
     func stop() {
@@ -472,7 +518,7 @@ import CryptoKit
 
     private func listen(prefill: [AVAudioPCMBuffer]) {
         endRecognition(); dropHead()
-        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")), recognizer.supportsOnDeviceRecognition else {
+        guard let recognizer, recognizer.supportsOnDeviceRecognition else {
             fail("On-device English speech isn't available on this Mac."); return
         }
         let id = UUID(); listenID = id
@@ -509,7 +555,7 @@ import CryptoKit
     }
     private func dropHead() { headTimer?.invalidate(); head?.cancel(); head = nil }
     private func startHead(_ text: String) {
-        guard phase == .listening, heard == text, head == nil else { return }
+        guard phase == .listening, heard == text, head == nil, qwenReady else { return }
         let message = userMessage(text)
         let start = HeadStart(text: text, message: message, wireCount: wire.count)
         let messages = wire + [message]
@@ -532,11 +578,15 @@ import CryptoKit
     }
     /// What the user circled on screen, read on this Mac (ScreenPeek). Used by the next question, then cleared.
     var screenNote: String?
+    /// The circled area as a JPEG data URL, when the brain has vision. Used by the next question, then cleared.
+    var screenImage: String?
     private func userMessage(_ text: String) -> [String: Any] {
         let now = Date().formatted(date: .abbreviated, time: .shortened)
         let app = context()["foreground_app"] ?? "unknown"
         let seen = screenNote.map { "[\($0)]\n" } ?? ""
-        return ["role": "user", "content": "[\(now) \(TimeZone.current.identifier) · frontmost app: \(app)]\n\(seen)\(text)"]
+        let line = "[\(now) \(TimeZone.current.identifier) · frontmost app: \(app)]\n\(seen)\(text)"
+        guard hasVision, let image = screenImage else { return ["role": "user", "content": line] }
+        return ["role": "user", "content": [["type": "image_url", "image_url": ["url": image]], ["type": "text", "text": line]]]
     }
     private func endRecognition() {
         headTimer?.invalidate(); endOfTurn?.invalidate(); request?.endAudio(); recognition?.cancel(); recognition = nil; request = nil
@@ -619,7 +669,7 @@ import CryptoKit
         let starts = wire.indices.filter { wire[$0]["role"] as? String == "user" }
         if starts.count >= 6 { wire = Array(wire.suffix(from: starts[starts.count - 5])) }
         wire.append(started?.message ?? userMessage(text))
-        screenNote = nil
+        screenNote = nil; screenImage = nil
         Diagnostics.shared.record("local_head_start", category: started == nil ? "none" : "used")
         set(.thinking, "Thinking…")
         let id = UUID(); turnID = id; replyDone = false; closeAfterReply = false
@@ -651,6 +701,20 @@ import CryptoKit
                         replyDone = true; finishIfDone(); return
                     }
                     // It didn't clearly work: the model reads the result and explains.
+                }
+                // No brain yet: say so honestly. Instant commands above already ran without it.
+                if !qwenReady {
+                    let line: String
+                    if downloader.running {
+                        line = "My brain's still downloading, \(Int(downloader.progress * 100)) percent. Meanwhile, try turn on dark mode, or set a timer."
+                    } else if let downloadError, HomieModels.installed(Self.tier) == nil {
+                        line = downloadError
+                    } else {
+                        line = "My brain's still waking up, give me a few seconds. Quick stuff like timers and dark mode works right now."
+                    }
+                    Diagnostics.shared.record("local_no_brain_yet", category: downloader.running ? "downloading" : "loading")
+                    speakLine(line)
+                    replyDone = true; finishIfDone(); return
                 }
                 var acknowledged = false
                 for _ in 0..<5 {

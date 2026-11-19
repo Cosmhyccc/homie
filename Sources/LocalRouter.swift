@@ -31,7 +31,10 @@ enum LocalRouter {
                                say: "Bet, \(titled.title.lowercased()) timer's set for \(spoken(titled.seconds)).")
         }
 
+        if let marking = markIntent(text) { return marking }
         if text.contains(" and ") || text.contains(" then ") || text.contains(" after ") { return nil }   // multi-step: model plans it
+
+        if let canvas = canvas3D(text) { return canvas }
 
         // Time and date
         if text.range(of: #"^(what time is it|what's the time|whats the time|what is the time|time check)$"#, options: .regularExpression) != nil {
@@ -128,6 +131,54 @@ enum LocalRouter {
         return nil
     }
 
+    /// Pointing at the screen: "circle this", "underline the deadline", "circle the Send button", "point at Settings",
+    /// "where's the share button". homie finds the words or control on screen itself (ScreenMarks); no model needed.
+    static func markIntent(_ text: String) -> LocalIntent? {
+        if let m = text.range(of: #"^(can you |please )?(circle|underline|box|highlight) (this|that|it)$"#, options: .regularExpression) {
+            let verb = String(text[m]).split(separator: " ").map(String.init).first { ["circle", "underline", "box", "highlight"].contains($0) } ?? "circle"
+            return LocalIntent(tool: "mark_screen", args: ["marks": "\(verb) it"], say: "Got it.")
+        }
+        if let m = text.range(of: #"^where('s| is) the (.{2,30}) (button|icon|tab|link|menu|toggle|switch)$"#, options: .regularExpression) {
+            let target = String(text[m]).replacingOccurrences(of: #"^where('s| is) the "#, with: "", options: .regularExpression)
+            return LocalIntent(tool: "mark_screen", args: ["marks": "arrow \(target)"], say: "Right there.")
+        }
+        guard let m = text.range(of: #"^(can you |please )?(circle|underline|box|highlight|point at|point to) (the )?(.{2,40})$"#, options: .regularExpression) else { return nil }
+        let phrase = String(text[m]).replacingOccurrences(of: #"^(can you |please )?"#, with: "", options: .regularExpression)
+        let verb = phrase.hasPrefix("point") ? "arrow" : String(phrase.split(separator: " ").first ?? "circle")
+        let target = phrase.replacingOccurrences(of: #"^(circle|underline|box|highlight|point at|point to) (the )?"#, with: "", options: .regularExpression)
+        guard !["this", "that", "it", "everything", "all", "me"].contains(target) else { return nil }
+        return LocalIntent(tool: "mark_screen", args: ["marks": "\(verb) \(target)"], say: verb == "arrow" ? "Right there." : "There.")
+    }
+
+    /// The 3D canvas by name: shapes, molecules, the solar system. Math surfaces go to the model (it turns speech into an expression).
+    static func canvas3D(_ text: String) -> LocalIntent? {
+        let ask = #"^(can you |could you |please )?(show|draw|make|render|build|give|display)( me| us)? (a |an |the |some )?(3d |three d )?"#
+        let shapes = "sphere|ball|cube|box|torus|donut|doughnut|cone|cylinder|pyramid|capsule|helix|spiral|spring|dna helix|double helix|dna"
+        let molecules = "water|carbon dioxide|co2|methane|ammonia|benzene|ethanol|oxygen"
+        func first(_ pattern: String) -> [String]? {
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let m = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
+            return (0..<m.numberOfRanges).map { m.range(at: $0).location == NSNotFound ? "" : String(text[Range(m.range(at: $0), in: text)!]) }
+        }
+        if let m = first(ask + "(\(shapes))( model)?( in 3d| in three d)?$") {
+            let shape = m[6]
+            return LocalIntent(tool: "show_3d", args: ["kind": "shape", "subject": shape, "labels": "", "title": ""],
+                               say: shape.contains("dna") || shape == "double helix" ? "Here's DNA's double helix. Drag it to spin it." : "Here you go. Drag it to spin it.")
+        }
+        if let m = first(ask + "(model of |molecule of )?(a |an )?(\(molecules))( molecule)?( model)?( in 3d)?$") ?? first("^what does (a |an )?(\(molecules)) molecule look like$").map({ ["", "", "", "", "", "", "", "", $0[2]] }),
+           let name = m.dropFirst(6).first(where: { molecules.split(separator: "|").map(String.init).contains($0) }),
+           text.contains("molecule") || text.contains("model") || text.contains("3d") {
+            return LocalIntent(tool: "show_3d", args: ["kind": "molecule", "subject": name, "labels": "", "title": ""], say: "Here's \(name). Drag it to spin it.")
+        }
+        if first(ask + "(solar system|planets)( in 3d)?$") != nil {
+            return LocalIntent(tool: "show_3d", args: ["kind": "planets", "subject": "", "labels": "", "title": ""], say: "Here's the solar system. Not to scale, obviously.")
+        }
+        if first(#"^(close|hide) (the |your |that )?(3d |three d )?(canvas|model|visualization|viz)$"#) != nil {
+            return LocalIntent(tool: "show_3d", args: ["kind": "close", "subject": "", "labels": "", "title": ""], say: "Closed.")
+        }
+        return nil
+    }
+
     /// How long to wait in silence before treating the user as done.
     /// A complete instant command commits fast; a sentence ending mid-thought gets extra room.
     static func endpointDelay(_ partial: String) -> Double {
@@ -139,6 +190,10 @@ enum LocalRouter {
                                      "about", "from", "into", "if", "when", "because", "that", "which", "who", "as", "than", "how",
                                      "what", "why", "where", "your", "his", "her", "their", "our", "this", "these", "those", "some",
                                      "any", "more", "really", "very", "just", "also", "me", "something", "kind", "sort", "are", "was"]
+        // "what is this" / "what's that" / "who is this" are whole questions (asked about what they circled), not cut-offs.
+        let words = text.split(separator: " ").map(String.init)
+        if ["this", "that", "these", "those", "it"].contains(last), words.count >= 2,
+           ["is", "are", "was", "what's", "whats", "who's", "whos", "about", "read", "explain", "translate", "mean", "means", "fix"].contains(words[words.count - 2]) { return 0.6 }
         if dangling.contains(last) { return 1.2 }
         if let fast = intent(partial, music: .spotify) ?? intent(partial, music: nil) {
             // "what's on my calendar" may still get a "tomorrow": give read-outs without a day the normal wait.
@@ -532,6 +587,7 @@ enum LocalTools {
         "take_screenshot": ["kind": "full"],
         "set_music_volume": ["amount": 10],
         "play_apple_music": ["artist": ""],
+        "show_3d": ["labels": "", "title": ""],
     ]
     static func localize(_ tools: [[String: Any]]) -> [[String: Any]] {
         tools.compactMap { tool in
@@ -553,7 +609,7 @@ enum LocalTools {
     static let finished: [String: String] = [
         "create_reminder": "Added to your reminders.", "complete_reminder": "Checked off.", "schedule_alert": "Set.",
         "cancel_alert": "Cancelled.", "create_note": "Note's saved.", "mac_setting": "Done.", "take_screenshot": "Screenshot saved.",
-        "set_pixie_size": "Done.", "clear_screen_drawings": "Wiped.", "quit_app": "Closed it.", "search_web": "Pulled it up.",
+        "set_pixie_size": "Done.", "clear_screen_drawings": "Wiped.", "show_3d": "Here it is. Drag it to spin it.", "quit_app": "Closed it.", "search_web": "Pulled it up.",
         "open_website": "It's up.", "arrange_windows": "Arranged.", "play_apple_music": "Let's go.", "control_apple_music": "Done.",
         "control_spotify": "Done.", "set_music_volume": "Done."]
     /// An action needs a matching word in what the user actually said. Small models sometimes call a random tool

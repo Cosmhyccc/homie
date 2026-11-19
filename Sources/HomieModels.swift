@@ -30,9 +30,16 @@ enum HomieModels {
     nonisolated static var folder: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Pixie/Local/models")
     }
+    /// The 4B's vision add-on: lets homie look at what you circle instead of only reading its text.
+    /// Full tier only; 8 GB Macs skip it to keep ~0.7 GB free. Same pinned commit as the brain.
+    static let vision = Model(file: "mmproj-F16.gguf",
+                              url: URL(string: "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/mmproj-F16.gguf")!,
+                              sha256: "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864", size: 672_423_616)
+    static func installedVision(_ tier: LocalBrain.Tier) -> URL? { tier == .full ? find(vision.file) : nil }
+
     /// The installed brain for this tier, or nil when it still needs downloading.
-    static func installed(_ tier: LocalBrain.Tier) -> URL? {
-        let file = model(tier).file
+    static func installed(_ tier: LocalBrain.Tier) -> URL? { find(model(tier).file) }
+    private static func find(_ file: String) -> URL? {
         for candidate in [folder.appendingPathComponent(file), LocalBrain.assets.appendingPathComponent("models/\(file)")]
         where FileManager.default.fileExists(atPath: candidate.path) { return candidate }
         return nil

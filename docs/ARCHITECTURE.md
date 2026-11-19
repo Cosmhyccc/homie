@@ -57,4 +57,12 @@ The prompt (persona + ~30 tool descriptions) is about 3,300 tokens: 7–19 s to 
 
 ## Seeing the screen
 
-Hold <kbd>fn</kbd> and circle something. `ScreenPeek` crops the circled area from a screenshot (ScreenCaptureKit), runs Apple's on-device text recognition and image classification, and hands the result to the model as text. No image leaves the Mac and no extra model sits in memory.
+Hold <kbd>fn</kbd> and circle something. `ScreenPeek` crops the circled area from a screenshot (ScreenCaptureKit). On 16 GB+ Macs the crop goes to the model as a picture through Qwen 3.5's vision add-on (≤256 image tokens, ~0.7 s), along with Apple's on-device text recognition for exact small print. On 8 GB Macs it gets the text and image labels only. No image leaves the Mac.
+
+## Pointing at the screen
+
+A 4B model can't place coordinates reliably, so it never does. It names targets (`circle Send; underline due Friday`), and `ScreenMarks` finds them: Apple's text recognition gives the box of every word on screen, and the Accessibility tree gives the frame of every control in the front app. The ink overlay animates the mark and the companion cursor flies to it.
+
+## 3D canvas
+
+`show_3d` takes a kind (surface, molecule, shape, planets, bars) and a few words. `HomieCanvas` builds the scene in SceneKit: a small math parser for `z = f(x, y)` surfaces, ball-and-stick molecules, an orbiting solar system. One short tool call, rendered in under 0.3 s.

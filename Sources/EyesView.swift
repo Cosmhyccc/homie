@@ -73,7 +73,7 @@ final class EyesView: NSView {
             NSRect(x: 0, y: bounds.height - 12, width: bounds.width, height: 12).fill()
         }
         NSGraphicsContext.current?.shouldAntialias = false
-        NSColor.white.setFill()
+        HomieEyes.current.ns.setFill()
         let pixels = visibleRows == 6
             ? ["01110", "11111", "11111", "11111", "11111", "01110"]
             : Array(repeating: "11111", count: visibleRows)

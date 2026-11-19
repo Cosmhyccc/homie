@@ -40,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         MainActor.assumeIsolated {
             brain.tools = LocalTools.localize(MusicController.tools + DesktopController.tools + TaskController.tools + MacControls.tools
-                                              + [ScreenInk.tool, ScreenInk.pathTool, ScreenInk.clearTool, LocalTools.sizeTool])
+                                              + [ScreenInk.tool, ScreenInk.pathTool, ScreenInk.clearTool, LocalTools.sizeTool, HomieCanvas.tool, ScreenMarks.tool])
             brain.context = { [weak self] in MainActor.assumeIsolated { self?.desktop.taskContext() ?? [:] } }
             brain.onTool = { [weak self] name, arguments, done in self?.run(name, arguments, done) }
             brain.onCaption = { [weak self] text, assistant in self?.show(text, assistant: assistant) }
@@ -58,7 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if !self.talking { self.brain.start() }
                 self.notch.model.caption = "Taking a peek… What would you like to know?"
                 Task { @MainActor in
-                    self.brain.screenNote = await ScreenPeek.read()
+                    let peek = await ScreenPeek.read(picture: self.brain.hasVision)
+                    self.brain.screenImage = peek?.image
+                    self.brain.screenNote = peek?.note
                         ?? "They circled part of their screen, but nothing in it could be read as text. Say you can only read text on screen for now."
                 }
             }
@@ -97,6 +99,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func run(_ name: String, _ arguments: [String: Any], _ done: @escaping ([String: Any]) -> Void) {
         if name == "clear_screen_drawings" { ScreenInk.shared.cancel(); done(["status": "cleared"]) }
         else if name == "draw_on_screen" || name == "draw_screen_path" { done(ScreenInk.shared.execute(arguments)) }
+        else if ScreenMarks.owns(name) { MainActor.assumeIsolated { ScreenMarks.run(arguments, done: done) } }
+        else if HomieCanvas.owns(name) { done(MainActor.assumeIsolated { HomieCanvas.shared.show(arguments) }) }
         else if name == "set_pixie_size" {
             guard let size = arguments["size"] as? String, ["giant", "small"].contains(size) else { done(["status": "error", "message": "Use giant or small."]); return }
             notch.setGiant(size == "giant"); done(["status": "resized", "size": size])
