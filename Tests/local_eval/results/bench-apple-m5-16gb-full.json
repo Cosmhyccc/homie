@@ -1,0 +1,484 @@
+{
+ "machine": {
+  "chip": "Apple M5",
+  "gpu_cores": 8,
+  "ram_gb": 16,
+  "macos": "26.7.2",
+  "model": "Mac17,3"
+ },
+ "model": "Qwen3.5-4B-Q4_K_M (llama.cpp b11912)",
+ "voice": "Kokoro af_heart (FluidAudio)",
+ "instant_first_audio_p50": 0.46201214790344236,
+ "instant_first_audio_p90": 0.9415398597717285,
+ "brain_first_audio_p50": 1.2042179107666016,
+ "brain_first_audio_p90": 1.511028528213501,
+ "brain_first_audio_p50_no_head_start": 1.5542179107666017,
+ "brain_turn_done_p50": 2.237187147140503,
+ "rows": [
+  {
+   "lane": "instant",
+   "text": "Set a timer for 5 minutes.",
+   "endpoint": 0.35,
+   "router": 0.0007731914520263672,
+   "voice": 0.21868371963500977,
+   "first_audio": 0.5694569110870361
+  },
+  {
+   "lane": "instant",
+   "text": "Dark mode.",
+   "endpoint": 0.35,
+   "router": 0.0009448528289794922,
+   "voice": 0.1115562915802002,
+   "first_audio": 0.46250114440917967
+  },
+  {
+   "lane": "instant",
+   "text": "Volume 30.",
+   "endpoint": 0.35,
+   "router": 0.0010581016540527344,
+   "voice": 0.11062765121459961,
+   "first_audio": 0.4616857528686523
+  },
+  {
+   "lane": "instant",
+   "text": "Open Notes.",
+   "endpoint": 0.35,
+   "router": 0.0012810230255126953,
+   "voice": 0.08809709548950195,
+   "first_audio": 0.4393781185150146
+  },
+  {
+   "lane": "instant",
+   "text": "What time is it?",
+   "endpoint": 0.6,
+   "router": 0.0017290115356445312,
+   "voice": 0.12260675430297852,
+   "first_audio": 0.724335765838623
+  },
+  {
+   "lane": "instant",
+   "text": "Pause.",
+   "endpoint": 0.35,
+   "router": 0.0012888908386230469,
+   "voice": 0.07325601577758789,
+   "first_audio": 0.4245449066162109
+  },
+  {
+   "lane": "instant",
+   "text": "Next song.",
+   "endpoint": 0.35,
+   "router": 0.00115203857421875,
+   "voice": 0.07197976112365723,
+   "first_audio": 0.42313179969787595
+  },
+  {
+   "lane": "instant",
+   "text": "Play Blinding Lights by The Weeknd.",
+   "endpoint": 0.35,
+   "router": 0.0017619132995605469,
+   "voice": 0.0746150016784668,
+   "first_audio": 0.4263769149780273
+  },
+  {
+   "lane": "instant",
+   "text": "Take a screenshot.",
+   "endpoint": 0.35,
+   "router": 0.0013880729675292969,
+   "voice": 0.09459614753723145,
+   "first_audio": 0.4459842205047607
+  },
+  {
+   "lane": "instant",
+   "text": "Google best tacos near me.",
+   "endpoint": 1.2,
+   "router": 0.0009338855743408203,
+   "voice": 0.0604550838470459,
+   "first_audio": 1.2613889694213867
+  },
+  {
+   "lane": "instant",
+   "text": "Quit Slack.",
+   "endpoint": 0.35,
+   "router": 0.0012378692626953125,
+   "voice": 0.07219099998474121,
+   "first_audio": 0.4234288692474365
+  },
+  {
+   "lane": "instant",
+   "text": "Set a timer for 3 minutes for the eggs.",
+   "endpoint": 0.35,
+   "router": 0.0014901161193847656,
+   "voice": 0.11052203178405762,
+   "first_audio": 0.46201214790344236
+  },
+  {
+   "lane": "instant",
+   "text": "What's on my calendar tomorrow?",
+   "endpoint": 0.35,
+   "router": 0.0006427764892578125,
+   "voice": 0.5908970832824707,
+   "first_audio": 0.9415398597717285
+  },
+  {
+   "lane": "instant",
+   "text": "What's on my to-do list?",
+   "endpoint": 0.6,
+   "router": 0.0006258487701416016,
+   "voice": 0.09179019927978516,
+   "first_audio": 0.6924160480499267
+  },
+  {
+   "lane": "brain",
+   "text": "remind me to call mom at 5pm",
+   "endpoint": 0.6,
+   "model_first": 0.5345699787139893,
+   "model_done": 4.57753324508667,
+   "voice": 0.10121989250183105,
+   "first_audio": 0.8857898712158203,
+   "first_audio_no_head_start": 1.2357898712158204
+  },
+  {
+   "lane": "brain",
+   "text": "make a note called groceries with eggs milk and bread",
+   "endpoint": 0.6,
+   "model_first": 1.0176870822906494,
+   "model_done": 3.0637130737304688,
+   "voice": 0.1036691665649414,
+   "first_audio": 1.3713562488555908,
+   "first_audio_no_head_start": 1.721356248855591
+  },
+  {
+   "lane": "brain",
+   "text": "put safari on the left and notes on the right",
+   "endpoint": 0.6,
+   "model_first": 1.2033920288085938,
+   "model_done": 4.187135934829712,
+   "voice": 0.08890223503112793,
+   "first_audio": 1.5422942638397217,
+   "first_audio_no_head_start": 1.8922942638397218
+  },
+  {
+   "lane": "brain",
+   "text": "open spotify and play drake",
+   "endpoint": 0.6,
+   "model_first": 1.0019679069519043,
+   "model_done": 2.1857669353485107,
+   "voice": 0.09095883369445801,
+   "first_audio": 1.3429267406463623,
+   "first_audio_no_head_start": 1.6929267406463624
+  },
+  {
+   "lane": "brain",
+   "text": "set an alarm for 7am tomorrow",
+   "endpoint": 0.6,
+   "model_first": 1.088109016418457,
+   "model_done": 5.7412779331207275,
+   "voice": 0.10922718048095703,
+   "first_audio": 1.447336196899414,
+   "first_audio_no_head_start": 1.7973361968994142
+  },
+  {
+   "lane": "brain",
+   "text": "find my resume",
+   "endpoint": 0.6,
+   "model_first": 0.8705978393554688,
+   "model_done": 2.0378828048706055,
+   "voice": 0.08362007141113281,
+   "first_audio": 1.2042179107666016,
+   "first_audio_no_head_start": 1.5542179107666017
+  },
+  {
+   "lane": "brain",
+   "text": "what's the capital of france",
+   "endpoint": 0.6,
+   "model_first": 0.7149131298065186,
+   "model_done": 0.7810900211334229,
+   "voice": 0.08842897415161133,
+   "first_audio": 1.0533421039581299,
+   "first_audio_no_head_start": 1.40334210395813
+  },
+  {
+   "lane": "brain",
+   "text": "tell me something interesting about space",
+   "endpoint": 0.6,
+   "model_first": 0.6816840171813965,
+   "model_done": 3.879073143005371,
+   "voice": 0.10026407241821289,
+   "first_audio": 1.0319480895996094,
+   "first_audio_no_head_start": 1.3819480895996095
+  },
+  {
+   "lane": "brain",
+   "text": "how are you",
+   "endpoint": 0.6,
+   "model_first": 0.5596070289611816,
+   "model_done": 1.8965113162994385,
+   "voice": 0.08709096908569336,
+   "first_audio": 0.896697998046875,
+   "first_audio_no_head_start": 1.246697998046875
+  },
+  {
+   "lane": "brain",
+   "text": "explain a black hole in one sentence",
+   "endpoint": 0.6,
+   "model_first": 1.1011552810668945,
+   "model_done": 2.6068851947784424,
+   "voice": 0.15987324714660645,
+   "first_audio": 1.511028528213501,
+   "first_audio_no_head_start": 1.861028528213501
+  },
+  {
+   "lane": "brain",
+   "text": "tell me a joke",
+   "endpoint": 0.6,
+   "model_first": 0.9723420143127441,
+   "model_done": 1.658721923828125,
+   "voice": 0.16971921920776367,
+   "first_audio": 1.3920612335205078,
+   "first_audio_no_head_start": 1.742061233520508
+  },
+  {
+   "lane": "brain",
+   "text": "I'm tired",
+   "endpoint": 0.6,
+   "model_first": 1.012789011001587,
+   "model_done": 1.8425328731536865,
+   "voice": 0.17093300819396973,
+   "first_audio": 1.4337220191955566,
+   "first_audio_no_head_start": 1.7837220191955567
+  },
+  {
+   "lane": "instant",
+   "text": "Set a timer for 5 minutes.",
+   "endpoint": 0.35,
+   "router": 0.0014188289642333984,
+   "voice": 0.3311500549316406,
+   "first_audio": 0.682568883895874
+  },
+  {
+   "lane": "instant",
+   "text": "Dark mode.",
+   "endpoint": 0.35,
+   "router": 0.0033788681030273438,
+   "voice": 0.38770627975463867,
+   "first_audio": 0.741085147857666
+  },
+  {
+   "lane": "instant",
+   "text": "Volume 30.",
+   "endpoint": 0.35,
+   "router": 0.011695146560668945,
+   "voice": 0.19752788543701172,
+   "first_audio": 0.5592230319976806
+  },
+  {
+   "lane": "instant",
+   "text": "Open Notes.",
+   "endpoint": 0.35,
+   "router": 0.0023391246795654297,
+   "voice": 0.09029698371887207,
+   "first_audio": 0.4426361083984375
+  },
+  {
+   "lane": "instant",
+   "text": "What time is it?",
+   "endpoint": 0.6,
+   "router": 0.0005791187286376953,
+   "voice": 0.10944294929504395,
+   "first_audio": 0.7100220680236816
+  },
+  {
+   "lane": "instant",
+   "text": "Pause.",
+   "endpoint": 0.35,
+   "router": 0.0016798973083496094,
+   "voice": 0.08463311195373535,
+   "first_audio": 0.43631300926208494
+  },
+  {
+   "lane": "instant",
+   "text": "Next song.",
+   "endpoint": 0.35,
+   "router": 0.0022993087768554688,
+   "voice": 0.07096695899963379,
+   "first_audio": 0.42326626777648924
+  },
+  {
+   "lane": "instant",
+   "text": "Play Blinding Lights by The Weeknd.",
+   "endpoint": 0.35,
+   "router": 0.0014829635620117188,
+   "voice": 0.0709390640258789,
+   "first_audio": 0.4224220275878906
+  },
+  {
+   "lane": "instant",
+   "text": "Take a screenshot.",
+   "endpoint": 0.35,
+   "router": 0.0013179779052734375,
+   "voice": 0.0877840518951416,
+   "first_audio": 0.439102029800415
+  },
+  {
+   "lane": "instant",
+   "text": "Google best tacos near me.",
+   "endpoint": 1.2,
+   "router": 0.0007979869842529297,
+   "voice": 0.058431148529052734,
+   "first_audio": 1.2592291355133056
+  },
+  {
+   "lane": "instant",
+   "text": "Quit Slack.",
+   "endpoint": 0.35,
+   "router": 0.0010418891906738281,
+   "voice": 0.05899405479431152,
+   "first_audio": 0.41003594398498533
+  },
+  {
+   "lane": "instant",
+   "text": "Set a timer for 3 minutes for the eggs.",
+   "endpoint": 0.35,
+   "router": 0.000982046127319336,
+   "voice": 0.09136724472045898,
+   "first_audio": 0.4423492908477783
+  },
+  {
+   "lane": "instant",
+   "text": "What's on my calendar tomorrow?",
+   "endpoint": 0.35,
+   "router": 0.0008318424224853516,
+   "voice": 0.7790179252624512,
+   "first_audio": 1.1298497676849366
+  },
+  {
+   "lane": "instant",
+   "text": "What's on my to-do list?",
+   "endpoint": 0.6,
+   "router": 0.0012340545654296875,
+   "voice": 0.14133405685424805,
+   "first_audio": 0.7425681114196777
+  },
+  {
+   "lane": "brain",
+   "text": "remind me to call mom at 5pm",
+   "endpoint": 0.6,
+   "model_first": 0.638059139251709,
+   "model_done": 4.263896942138672,
+   "voice": 0.22476577758789062,
+   "first_audio": 1.1128249168395996,
+   "first_audio_no_head_start": 1.4628249168395997
+  },
+  {
+   "lane": "brain",
+   "text": "make a note called groceries with eggs milk and bread",
+   "endpoint": 0.6,
+   "model_first": 0.7090308666229248,
+   "model_done": 2.724087715148926,
+   "voice": 0.10961270332336426,
+   "first_audio": 1.068643569946289,
+   "first_audio_no_head_start": 1.4186435699462892
+  },
+  {
+   "lane": "brain",
+   "text": "put safari on the left and notes on the right",
+   "endpoint": 0.6,
+   "model_first": 0.85453200340271,
+   "model_done": 3.5349080562591553,
+   "voice": 0.16608905792236328,
+   "first_audio": 1.2706210613250732,
+   "first_audio_no_head_start": 1.6206210613250733
+  },
+  {
+   "lane": "brain",
+   "text": "open spotify and play drake",
+   "endpoint": 0.6,
+   "model_first": 0.6967358589172363,
+   "model_done": 1.8483078479766846,
+   "voice": 0.10108637809753418,
+   "first_audio": 1.0478222370147705,
+   "first_audio_no_head_start": 1.3978222370147706
+  },
+  {
+   "lane": "brain",
+   "text": "set an alarm for 7am tomorrow",
+   "endpoint": 0.6,
+   "model_first": 0.8479297161102295,
+   "model_done": 4.935905694961548,
+   "voice": 0.11056208610534668,
+   "first_audio": 1.2084918022155762,
+   "first_audio_no_head_start": 1.5584918022155763
+  },
+  {
+   "lane": "brain",
+   "text": "find my resume",
+   "endpoint": 0.6,
+   "model_first": 0.7411932945251465,
+   "model_done": 1.7198550701141357,
+   "voice": 0.13754606246948242,
+   "first_audio": 1.128739356994629,
+   "first_audio_no_head_start": 1.478739356994629
+  },
+  {
+   "lane": "brain",
+   "text": "what's the capital of france",
+   "endpoint": 0.6,
+   "model_first": 0.6039197444915771,
+   "model_done": 0.6520698070526123,
+   "voice": 0.12345123291015625,
+   "first_audio": 0.9773709774017334,
+   "first_audio_no_head_start": 1.3273709774017335
+  },
+  {
+   "lane": "brain",
+   "text": "tell me something interesting about space",
+   "endpoint": 0.6,
+   "model_first": 0.5130062103271484,
+   "model_done": 3.3450071811676025,
+   "voice": 0.1802821159362793,
+   "first_audio": 0.9432883262634277,
+   "first_audio_no_head_start": 1.2932883262634278
+  },
+  {
+   "lane": "brain",
+   "text": "how are you",
+   "endpoint": 0.6,
+   "model_first": 0.48700785636901855,
+   "model_done": 1.5344607830047607,
+   "voice": 0.12232494354248047,
+   "first_audio": 0.859332799911499,
+   "first_audio_no_head_start": 1.2093327999114991
+  },
+  {
+   "lane": "brain",
+   "text": "explain a black hole in one sentence",
+   "endpoint": 0.6,
+   "model_first": 0.940277099609375,
+   "model_done": 2.237187147140503,
+   "voice": 0.3419656753540039,
+   "first_audio": 1.532242774963379,
+   "first_audio_no_head_start": 1.882242774963379
+  },
+  {
+   "lane": "brain",
+   "text": "tell me a joke",
+   "endpoint": 0.6,
+   "model_first": 0.7324552536010742,
+   "model_done": 1.3244853019714355,
+   "voice": 0.4356060028076172,
+   "first_audio": 1.4180612564086914,
+   "first_audio_no_head_start": 1.7680612564086915
+  },
+  {
+   "lane": "brain",
+   "text": "I'm tired",
+   "endpoint": 0.6,
+   "model_first": 0.684248685836792,
+   "model_done": 1.4207179546356201,
+   "voice": 0.17879295349121094,
+   "first_audio": 1.113041639328003,
+   "first_audio_no_head_start": 1.463041639328003
+  }
+ ],
+ "tier": "full"
+}
