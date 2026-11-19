@@ -36,7 +36,7 @@ sequenceDiagram
 
 ## Keeping the brain warm
 
-The prompt (persona + ~30 tool descriptions) is about 3,300 tokens: 7–19 s to read on a laptop. homie reads it once:
+The prompt (persona + ~30 tool descriptions) is about 3,700 tokens: 7–19 s to read on a laptop. homie reads it once:
 
 1. On first launch the prompt is rendered with llama.cpp's chat template and read **up to the user-turn marker** (`<|im_start|>`), then the model state is saved to disk (`/slots/0?action=save`).
 2. Later launches restore that file in ~0.12 s. A question then only adds its own tokens (~45).
