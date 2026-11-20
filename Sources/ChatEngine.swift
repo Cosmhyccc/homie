@@ -8,13 +8,13 @@ enum ChatModelChoice: String, Codable, CaseIterable, Sendable {
     @MainActor var detail: String {
         switch self {
         case .homie: return (LocalBrain.tier == .lite ? "Qwen3.5 2B" : "Qwen3.5 4B") + " · on this Mac · free"
-        case .max: return ChatBackends.max == nil ? "cloud · coming soon" : "cloud · most powerful"
+        case .max: return ChatBackends.max == nil ? "cloud · coming soon" : ChatBackends.maxReady() ? "cloud · most powerful" : "cloud · with homie max"
         }
     }
     @MainActor var available: Bool {
         switch self {
         case .homie: return ChatBackends.local != nil
-        case .max: return ChatBackends.max != nil
+        case .max: return ChatBackends.max != nil && ChatBackends.maxReady()
         }
     }
     /// Rough character budget for the history we send (local context is 12k tokens, lite 8k).
@@ -29,6 +29,8 @@ enum ChatModelChoice: String, Codable, CaseIterable, Sendable {
     /// True when the local brain loaded its vision add-on, so attached pictures can go to it as pictures.
     static var localVision: () -> Bool = { false }
     static var max: Stream?
+    /// True when this Mac is on homie max (signed in, max picked), so max chat can be chosen.
+    static var maxReady: () -> Bool = { false }
     static func stream(_ model: ChatModelChoice) -> Stream? { model == .homie ? local : max }
 }
 
@@ -100,7 +102,14 @@ enum ChatPrompt {
 
     init(store: ChatStore? = nil, model: ChatModelChoice? = nil) {
         self.store = store ?? .shared
-        thread = ChatThread(model: model ?? Self.lastModel)
+        thread = ChatThread(model: model ?? Self.preferred)
+    }
+
+    /// The last model used, unless it can't answer right now and the other one can (e.g. just switched to max).
+    static var preferred: ChatModelChoice {
+        let last = lastModel
+        if last.available { return last }
+        return ChatModelChoice.allCases.first(where: \.available) ?? last
     }
 
     nonisolated static var lastModel: ChatModelChoice {
@@ -113,7 +122,7 @@ enum ChatPrompt {
         thread.model = model; Self.lastModel = model
     }
 
-    func newChat() { stop(); thread = ChatThread(model: Self.lastModel) }
+    func newChat() { stop(); thread = ChatThread(model: Self.preferred) }
 
     func open(_ id: UUID) {
         guard id != thread.id, let loaded = store.load(id) else { return }
@@ -121,7 +130,7 @@ enum ChatPrompt {
     }
 
     func delete(_ id: UUID) {
-        if id == thread.id { stop(); thread = ChatThread(model: Self.lastModel) }
+        if id == thread.id { stop(); thread = ChatThread(model: Self.preferred) }
         store.delete(id)
     }
 
@@ -137,7 +146,7 @@ enum ChatPrompt {
         thread.messages.append(reply)
         thread.updated = Date()
         guard let backend = ChatBackends.stream(thread.model) else { activeReply = reply.id; finish(note: ChatError.unavailable(thread.model).localizedDescription); return }
-        let wire = ChatPrompt.messages(history, model: thread.model, name: name(), vision: thread.model == .homie && ChatBackends.localVision())
+        let wire = ChatPrompt.messages(history, model: thread.model, name: name(), vision: thread.model == .max || ChatBackends.localVision())
         activeReply = reply.id
         streaming = true
         let id = reply.id
