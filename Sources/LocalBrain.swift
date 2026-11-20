@@ -52,11 +52,21 @@ import CryptoKit
     /// First run on a fresh Mac: the brain downloads once (1.3–2.7 GB), then everything runs offline.
     private let downloader = HomieDownloader()
     private var downloadError: String?
+    /// First-run brain download as the guide shows it: fraction done, seconds left, or the reason it stopped.
+    enum BrainDownload: Equatable { case fetching(Double, Double?), failed(String) }
+    var brainDownload: BrainDownload? {
+        if let downloadError, HomieModels.installed(Self.tier) == nil { return .failed(downloadError) }
+        return brainFetching ? .fetching(downloader.progress, brainLeft) : nil
+    }
+    private var brainFetching = false
+    private var brainLeft: Double?
     private func download() {
         guard !downloader.running else { return }
         downloadError = nil
         let model = HomieModels.model(Self.tier)
+        brainFetching = true; brainLeft = nil
         downloader.onProgress = { [weak self] value, left in
+            Task { @MainActor in self?.brainLeft = left }
             let eta = left.map { $0 < 60 ? " · under a minute left" : " · about \(Int(($0 / 60).rounded(.up))) min left" } ?? ""
             Task { @MainActor in
                 guard let self, self.phase == .waking else { return }
@@ -67,6 +77,8 @@ import CryptoKit
         downloader.fetch(model) { [weak self] result in
             Task { @MainActor in
                 guard let self else { return }
+                // The vision add-on reuses this downloader next; its progress isn't the brain's.
+                self.downloader.onProgress = nil; self.brainFetching = false
                 switch result {
                 case .success:
                     Diagnostics.shared.record("local_model_download_ms", category: Self.tier.rawValue, number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000))
