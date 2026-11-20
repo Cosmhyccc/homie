@@ -37,6 +37,9 @@ import ApplicationServices
 
     private var chain: Task<Void, Never>?
     private var found: [URL] = []
+    /// When homie last asked about emptying the Trash. A yes only counts right after that question,
+    /// so a model that jumps straight to confirmed true (or asks and answers itself) still gets asked first.
+    private var trashAsked: Date?
     nonisolated init() {}
 
     /// Runs calls one after another, so a parallel batch never collides.
@@ -255,10 +258,13 @@ import ApplicationServices
     private func emptyTrash(_ arguments: [String: Any]) async throws -> [String: Any] {
         // Finder knows the real count; the .Trash folder itself is privacy-protected.
         let count = Int(try await script("tell application \"Finder\" to count items of trash").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-        guard arguments["confirmed"] as? Bool == true else {
-            return ["status": "needs_confirmation", "items": count, "message": "Ask the user to confirm. Emptying the Trash can't be undone."]
+        if count == 0 { trashAsked = nil; return ["status": "completed", "message": "The Trash was already empty."] }
+        let askedRecently = trashAsked.map { (4..<120).contains(Date().timeIntervalSince($0)) } ?? false
+        guard arguments["confirmed"] as? Bool == true, askedRecently else {
+            trashAsked = Date()
+            return ["status": "needs_confirmation", "items": count, "message": "Not emptied yet. Ask the user to confirm. Emptying the Trash can't be undone."]
         }
-        if count == 0 { return ["status": "completed", "message": "The Trash was already empty."] }
+        trashAsked = nil
         try await script("tell application \"Finder\" to empty trash")
         return ["status": "completed", "emptied_items": count]
     }

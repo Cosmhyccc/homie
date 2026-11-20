@@ -17,6 +17,7 @@ echo "▸ model downloader (local server, no internet)"
 build Sources/HomieModels.swift Tests/HomieDownloaderTests.swift -o "$out/downloader"
 head -c 8000000 /dev/urandom > "$out/fake.gguf"
 port=$((20000 + RANDOM % 20000))
-(cd "$out" && exec python3 -m http.server "$port" --bind 127.0.0.1 >/dev/null 2>&1) & server=$!
-sleep 1; "$out/downloader" "$out" "$port" | tail -1; kill $server; wait $server 2>/dev/null || true
+python3 Tests/range_server.py "$out" "$port" >/dev/null 2>&1 & server=$!
+for _ in $(seq 50); do curl -sf "http://127.0.0.1:$port/stats" >/dev/null && break; sleep 0.2; done
+"$out/downloader" "$out" "$port" | tail -1; kill $server; wait $server 2>/dev/null || true
 echo "✓ all tests passed"

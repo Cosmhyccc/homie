@@ -72,7 +72,7 @@ Everything runs on your Mac. homie makes these network requests and no others:
 | You ask to play a song | Song lookup and album art | Apple's iTunes Search API |
 | You ask to open a site or search | Your browser opens it | wherever you asked |
 
-No accounts, no analytics (the signed download's setup screens count anonymous steps until you pick free homie, then nothing; this source build has none at all). Speech recognition, dictation (<kbd>fn</kbd>+<kbd>⌃</kbd>) and screen reading (hold <kbd>fn</kbd> and circle something) all run on your Mac: the circled area goes to the local model as a picture and never leaves the computer. Verify it yourself:
+No accounts, no analytics (the signed download's setup screens count anonymous steps, with rough location (country/city, the IP itself isn't kept), until you pick free homie, then nothing; this source build has none at all). Speech recognition, dictation (<kbd>fn</kbd>+<kbd>⌃</kbd>) and screen reading (hold <kbd>fn</kbd> and circle something) all run on your Mac: the circled area goes to the local model as a picture and never leaves the computer. Verify it yourself:
 
 ```bash
 lsof -nP -i -a -c llama-server     # the brain only listens on 127.0.0.1

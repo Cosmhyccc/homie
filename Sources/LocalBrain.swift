@@ -56,10 +56,11 @@ import CryptoKit
         guard !downloader.running else { return }
         downloadError = nil
         let model = HomieModels.model(Self.tier)
-        downloader.onProgress = { [weak self] value in
+        downloader.onProgress = { [weak self] value, left in
+            let eta = left.map { $0 < 60 ? " · under a minute left" : " · about \(Int(($0 / 60).rounded(.up))) min left" } ?? ""
             Task { @MainActor in
                 guard let self, self.phase == .waking else { return }
-                self.set(.waking, "Getting homie's brain ready… \(Int(value * 100))%")
+                self.set(.waking, "Getting homie's brain ready… \(Int(value * 100))%\(eta)")
             }
         }
         let started = ProcessInfo.processInfo.systemUptime

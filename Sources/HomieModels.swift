@@ -65,64 +65,149 @@ enum HomieDownloadError: LocalizedError {
     }
 }
 
-/// One download at a time, with progress, resume after a dropped connection, and a checksum before install.
-final class HomieDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+/// One download at a time: 32 MB pieces over 6 connections (Hugging Face gives one connection ~4 MB/s, six ~15 MB/s),
+/// written straight into `<file>.part`. A small ledger next to it records finished pieces, so a dropped connection,
+/// a quit or a restart picks up where it left off. The whole file is checked against its SHA-256 before install.
+/// Servers that ignore Range get one plain download instead.
+final class HomieDownloader: @unchecked Sendable {
     private(set) var progress: Double = 0
     private(set) var running = false
-    private var model: HomieModels.Model?
-    private var attempts = 0
-    private var finished: ((Result<URL, Error>) -> Void)?
-    private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: OperationQueue())
-    var onProgress: ((Double) -> Void)?
+    /// Fraction done, and seconds left once there's a few seconds of speed to go on.
+    var onProgress: ((Double, Double?) -> Void)?
+    var connections = 6
+    var piece: Int64 = 32 << 20
+
+    private struct Ledger: Codable { var sha256: String; var size: Int64; var piece: Int64; var done: Set<Int> }
+    private let lock = NSLock()
+    private var ledger = Ledger(sha256: "", size: 0, piece: 0, done: [])
+    private var finished: Int64 = 0
+    private var queue: ArraySlice<Int> = []
+    private var job: Task<Void, Never>?
+    private lazy var session: URLSession = {
+        let c = URLSessionConfiguration.default
+        c.urlCache = nil; c.timeoutIntervalForRequest = 30; c.httpMaximumConnectionsPerHost = connections
+        return URLSession(configuration: c)
+    }()
 
     func fetch(_ model: HomieModels.Model, done: @escaping (Result<URL, Error>) -> Void) {
         guard !running else { return }
+        let part = HomieModels.folder.appendingPathComponent(model.file + ".part")
+        let resuming = FileManager.default.fileExists(atPath: part.path)
         let free = (try? URL(fileURLWithPath: NSHomeDirectory()).resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage ?? .max
-        guard free > model.size + 1_000_000_000 else { done(.failure(HomieDownloadError.space(model.size))); return }
-        self.model = model; finished = done; running = true; attempts = 0; progress = 0
-        session.downloadTask(with: model.url).resume()
-    }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        let total = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : model?.size ?? 1
-        progress = min(1, Double(totalBytesWritten) / Double(total))
-        onProgress?(progress)
-    }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let model else { return }
-        let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
-        let result: Result<URL, Error>
-        do {
-            guard (200..<300).contains(status) else { throw HomieDownloadError.status(status) }
-            let size = (try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value ?? 0
-            guard size == model.size else { throw HomieDownloadError.size }
-            guard try HomieModels.sha256(of: location) == model.sha256 else { throw HomieDownloadError.checksum }
-            try FileManager.default.createDirectory(at: HomieModels.folder, withIntermediateDirectories: true)
-            let destination = HomieModels.folder.appendingPathComponent(model.file)
-            try? FileManager.default.removeItem(at: destination)
-            try FileManager.default.moveItem(at: location, to: destination)
-            result = .success(destination)
-        } catch { result = .failure(error) }
-        finish(result)
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error, running else { return }
-        // A dropped connection keeps what it got: pick up where it left off, a few times.
-        if let data = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data, attempts < 5 {
-            attempts += 1
-            DispatchQueue.global().asyncAfter(deadline: .now() + Double(attempts)) { [weak self] in
-                self?.session.downloadTask(withResumeData: data).resume()
-            }
-            return
+        guard free > (resuming ? 0 : model.size) + 1_000_000_000 else { done(.failure(HomieDownloadError.space(model.size))); return }
+        running = true; progress = 0
+        job = Task { [self] in
+            let ticker = Task { await tick(model.size) }
+            let result = await run(model, part: part)
+            ticker.cancel()
+            if case .success = result { progress = 1; onProgress?(1, 0) }
+            running = false; job = nil
+            done(result)
         }
-        finish(.failure(error))
     }
 
-    private func finish(_ result: Result<URL, Error>) {
-        running = false
-        let done = finished; finished = nil
-        done?(result)
+    /// Stops after the pieces in flight; the next fetch resumes from the ledger.
+    func cancel() { job?.cancel() }
+
+    private func run(_ model: HomieModels.Model, part: URL) async -> Result<URL, Error> {
+        let fm = FileManager.default, record = part.appendingPathExtension("json")
+        do {
+            try fm.createDirectory(at: HomieModels.folder, withIntermediateDirectories: true)
+            let saved = (try? Data(contentsOf: record)).flatMap { try? JSONDecoder().decode(Ledger.self, from: $0) }
+            let partSize = (try? fm.attributesOfItem(atPath: part.path)[.size] as? NSNumber)?.int64Value
+            if let saved, saved.sha256 == model.sha256, saved.size == model.size, saved.piece == piece, partSize == model.size {
+                ledger = saved
+            } else {
+                try? fm.removeItem(at: part)
+                guard fm.createFile(atPath: part.path, contents: nil) else { throw CocoaError(.fileWriteUnknown) }
+                let h = try FileHandle(forWritingTo: part); try h.truncate(atOffset: UInt64(model.size)); try h.close()
+                ledger = Ledger(sha256: model.sha256, size: model.size, piece: piece, done: [])
+                try save(record)
+            }
+            let count = Int((model.size + piece - 1) / piece)
+            finished = ledger.done.reduce(0) { $0 + length($1, model.size) }
+            var pending = (0..<count).filter { !ledger.done.contains($0) }
+            // The first piece alone tells us whether the server honours Range.
+            if let first = pending.first {
+                if try await get(first, model, part: part, record: record, probe: true) { pending.removeFirst() } else { pending = [] }
+            }
+            queue = pending[...]
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for _ in 0..<min(connections, pending.count) {
+                    group.addTask { [self] in
+                        while let i = lock.withLock({ queue.popFirst() }) { _ = try await get(i, model, part: part, record: record, probe: false) }
+                    }
+                }
+                try await group.waitForAll()
+            }
+            guard try HomieModels.sha256(of: part) == model.sha256 else {
+                try? fm.removeItem(at: part); try? fm.removeItem(at: record)
+                throw HomieDownloadError.checksum
+            }
+            let destination = HomieModels.folder.appendingPathComponent(model.file)
+            try? fm.removeItem(at: destination)
+            try fm.moveItem(at: part, to: destination)
+            try? fm.removeItem(at: record)
+            return .success(destination)
+        } catch { return .failure(error) }
+    }
+
+    private func length(_ i: Int, _ size: Int64) -> Int64 { min(size, Int64(i + 1) * piece) - Int64(i) * piece }
+
+    /// Fetches one piece into place, retrying dropped connections. Returns false when the server ignored Range
+    /// and sent the whole file, which then becomes the part file as is.
+    private func get(_ i: Int, _ model: HomieModels.Model, part: URL, record: URL, probe: Bool) async throws -> Bool {
+        let start = Int64(i) * piece, count = length(i, model.size)
+        var request = URLRequest(url: model.url)
+        request.setValue("bytes=\(start)-\(start + count - 1)", forHTTPHeaderField: "Range")
+        var attempt = 0, last: Error = HomieDownloadError.size
+        while true {
+            try Task.checkCancellation()
+            do {
+                let (tmp, response) = try await session.download(for: request)
+                defer { try? FileManager.default.removeItem(at: tmp) }
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let got = (try FileManager.default.attributesOfItem(atPath: tmp.path)[.size] as? NSNumber)?.int64Value ?? -1
+                if status == 200, probe, got == model.size {
+                    try? FileManager.default.removeItem(at: part)
+                    try FileManager.default.moveItem(at: tmp, to: part)
+                    try lock.withLock { ledger.done = Set(0..<Int((model.size + piece - 1) / piece)); finished = model.size; try save(record) }
+                    return false
+                }
+                if status == 206, got == count {
+                    let from = try FileHandle(forReadingFrom: tmp), to = try FileHandle(forWritingTo: part)
+                    defer { try? from.close(); try? to.close() }
+                    try to.seek(toOffset: UInt64(start))
+                    while let chunk = try from.read(upToCount: 4 << 20), !chunk.isEmpty { try to.write(contentsOf: chunk) }
+                    try lock.withLock { ledger.done.insert(i); finished += count; try save(record) }
+                    return true
+                }
+                // Client errors other than rate limits won't fix themselves.
+                if (400..<500).contains(status), status != 408, status != 429 { throw HomieDownloadError.status(status) }
+                if status != 206 { last = HomieDownloadError.status(status) }
+            } catch let error as HomieDownloadError { throw error }
+            catch is CancellationError { throw CancellationError() }
+            catch { last = error }
+            attempt += 1
+            guard attempt <= 5 else { throw last }
+            try await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+        }
+    }
+
+    private func save(_ record: URL) throws { try JSONEncoder().encode(ledger).write(to: record, options: .atomic) }
+
+    /// Twice a second: finished pieces plus bytes in flight, and time left from the last ~15 s of speed.
+    private func tick(_ size: Int64) async {
+        var samples: [(TimeInterval, Int64)] = []
+        while !Task.isCancelled {
+            let inFlight = await session.allTasks.reduce(Int64(0)) { $0 + ($1.state == .running ? $1.countOfBytesReceived : 0) }
+            let total = min(size, lock.withLock { finished } + inFlight), now = ProcessInfo.processInfo.systemUptime
+            samples.append((now, total)); samples.removeAll { now - $0.0 > 15 }
+            var left: Double?
+            if let first = samples.first, now - first.0 >= 5, total > first.1 { left = Double(size - total) / (Double(total - first.1) / (now - first.0)) }
+            progress = min(0.999, Double(total) / Double(size))
+            onProgress?(progress, left)
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
     }
 }

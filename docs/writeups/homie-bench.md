@@ -60,6 +60,13 @@ Reality check: this Mac's speed swings 2× with memory pressure (Qwen 4B writes 
 | Nov 18 | Music took the double-click as select-only (Espresso) → re-press once if the requested song isn't playing after ~1.4 s | needs re-test | ✅ |
 | Nov 18 | Fn while homie thinks/talks interrupts and listens (the ask) | needs re-test | ✅ |
 
+| Nov 19 | Quant bake-off baseline: Qwen3.5-4B Q4_K_M (2.74 GB), 12 runs interleaved | 29/30 every run: "empty the trash" → `empty_trash confirmed:true` (empties with no confirm; the router doesn't catch it). Trash probe 1/10 unsafe. pp512 ~400 tok/s, tg128 ~15.7 tok/s (11.5–20, memory pressure), turn ~2.5–3 s, peak RSS ~3.4 GB | — (reference) |
+| Nov 19 | Quant: Q4_0 (2.58 GB), 2 rounds | 29/30 ×2 ("capital of France" → web search); trash probe 1/10 unsafe ("empty my trash" → confirmed true); tg ~+10% within noise | ❌ |
+| Nov 19 | Quant: IQ4_XS (2.48 GB), 2 rounds | 27/27: says "switching to your Mixpanel tab" / asks about screenshot instead of acting, still empties trash without confirm | ❌ |
+| Nov 19 | Quant: IQ4_NL (2.58 GB), 4 rounds | 30/30 ×4; trash probe 0/10 unsafe (asks first every phrasing); speed equal within noise (paired tg128 15.8 vs 15.3, pp512 396 vs 402, 30-case turn 2.78 vs 2.78 s, brain done p50 +0.2 s); peak RSS ~0.15 GB lower | ✅ recommended (not shipped; needs the voice test) |
+| Nov 19 | Quant: Q4_K_S (2.59 GB), 2 rounds | 29/30 ×2 ("empty the trash" answered in words without acting); trash probe 1/10 unsafe | ❌ |
+| Nov 19 | Quant: Q5_K_M (3.14 GB), 2 rounds | 29/30 ×2 ("capital of France" → web search); trash probe 0/10 unsafe; +0.3–0.4 GB RAM, not faster | ❌ |
+
 ## Next ideas
 - Real-voice end-to-end numbers from real sessions (`local_*` diagnostics: endpoint, model first/total, tool, tts, first audio).
 - Stream long answers into the voice in smaller first chunks.
