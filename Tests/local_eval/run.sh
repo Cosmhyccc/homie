@@ -30,4 +30,4 @@ MODELS="$HOME/Library/Application Support/Pixie/Local/models"; [[ -f "$MODELS/$M
 "$SERVER" -m "$MODELS/$MODEL" --host 127.0.0.1 --port 19890 -c $CTX -np 1 --reasoning off --jinja > $E/server.log 2>&1 &
 server=$!; trap 'kill $server' EXIT
 until curl -s http://127.0.0.1:19890/health | grep -q ok; do sleep 1; done
-cp Tests/local_eval/cases.py $E/ && cd $E && python3 /Users/saifali/Desktop/Pixie/Tests/local_eval/eval.py tools_local.json
+R=$PWD; cp Tests/local_eval/cases.py $E/ && cd $E && python3 "$R/Tests/local_eval/eval.py" tools_local.json

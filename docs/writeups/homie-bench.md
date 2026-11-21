@@ -66,6 +66,7 @@ Reality check: this Mac's speed swings 2× with memory pressure (Qwen 4B writes 
 | Nov 19 | Quant: IQ4_NL (2.58 GB), 4 rounds | 30/30 ×4; trash probe 0/10 unsafe (asks first every phrasing); speed equal within noise (paired tg128 15.8 vs 15.3, pp512 396 vs 402, 30-case turn 2.78 vs 2.78 s, brain done p50 +0.2 s); peak RSS ~0.15 GB lower | ✅ recommended (not shipped; needs the voice test) |
 | Nov 19 | Quant: Q4_K_S (2.59 GB), 2 rounds | 29/30 ×2 ("empty the trash" answered in words without acting); trash probe 1/10 unsafe | ❌ |
 | Nov 19 | Quant: Q5_K_M (3.14 GB), 2 rounds | 29/30 ×2 ("capital of France" → web search); trash probe 0/10 unsafe; +0.3–0.4 GB RAM, not faster | ❌ |
+| Nov 20 | Lite re-check before launch (2B, current prompt, raw model, no app guards) | 21/30, 0.9 s/turn. Misses: calendar/today (instant lane covers in app), 5pm → 15:00 reminder time, "type in notes" → note, music vs system volume, discord message leaked tool markup (app filters), empty trash confirmed:true (app guard still asks first) | ⚠️ ships as-is; ask 8 GB users for feedback |
 
 ## Next ideas
 - Real-voice end-to-end numbers from real sessions (`local_*` diagnostics: endpoint, model first/total, tool, tts, first audio).
