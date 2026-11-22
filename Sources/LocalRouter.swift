@@ -88,8 +88,19 @@ enum LocalRouter {
             }
         }
 
-        // "play <song> by <artist>": straight to Apple Music. Spotify needs a search-then-click plan, so the model does it.
-        if music != .spotify, !text.contains("spotify"), !text.contains("youtube"),
+        // Spotify, said or implied (it's on this Mac and Apple Music isn't the one in use): open the song in Spotify's
+        // search right away. The small local brain can't reliably plan search-then-click, so it never gets this.
+        if !text.contains("youtube"), !text.contains("apple music"), text.contains("spotify") || (music != .appleMusic && !text.contains("on music")),
+           let what = capture(text, #"^(?:play|put on|throw on|bump|open|find|search(?: spotify)? for|pull up) (?:the song |me |some )?(.+?)(?: (?:on|in|with) spotify)?$"#)?
+               .replacingOccurrences(of: #" by "#, with: " ", options: .regularExpression),
+           !what.contains("spotify"), !what.isEmpty, what.split(separator: " ").count <= 10,
+           what.range(of: #"^(something|anything|music|songs?|a song|it|that|this|the next|next|previous|stuff)$|\b(game|games|chess|video|videos|movie|trailer|episode)\b"#, options: .regularExpression) == nil,
+           text.hasPrefix("play") || text.hasPrefix("put on") || text.hasPrefix("throw on") || text.hasPrefix("bump") || text.contains("spotify") {
+            return LocalIntent(tool: "search_spotify", args: ["query": what], say: "Here it is in Spotify, hit play on the top one.")
+        }
+
+        // "play <song> by <artist>": straight to Apple Music when that's the player.
+        if music == .appleMusic || text.contains("apple music"), !text.contains("spotify"), !text.contains("youtube"),
            let regex = try? NSRegularExpression(pattern: #"^(?:play|put on|throw on|bump) (?:the song |me )?(.+?) by (.+?)(?: on apple music| on music)?$"#),
            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
            let songRange = Range(match.range(at: 1), in: text), let artistRange = Range(match.range(at: 2), in: text) {
@@ -100,7 +111,7 @@ enum LocalRouter {
         }
 
         // "play <song or artist>" when Apple Music is the player: same tool, no artist.
-        if music == .appleMusic, !text.contains("spotify"), !text.contains("youtube"), !text.contains(" by "),
+        if music == .appleMusic || text.contains("apple music"), !text.contains("spotify"), !text.contains("youtube"), !text.contains(" by "),
            let what = capture(text, #"^(?:play|put on|throw on|bump) (?:the song |me |some )?(.+?)(?: on apple music| on music)?$"#),
            what.split(separator: " ").count <= 6,
            what.range(of: #"^(something|anything|music|songs?|a song|it|that|this|my |the next|next|previous|a playlist|playlists?|albums?|radio|podcasts?|stuff)\b"#, options: .regularExpression) == nil,

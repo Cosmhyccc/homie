@@ -196,7 +196,8 @@ import CryptoKit
             let vision = HomieModels.installedVision(Self.tier)
             if vision == nil, Self.tier == .full, !downloader.running { downloader.fetch(HomieModels.vision) { _ in } }
             hasVision = vision != nil
-            if vision != nil, !downloader.running { ScreenGrounder.shared.prefetch() }   // then the pointing eyes for icons
+            // Not released yet: only Macs that opted in (defaults write local.saif.pixie homie.pointingEyes -bool true) fetch it.
+            if vision != nil, !downloader.running, UserDefaults.standard.bool(forKey: "homie.pointingEyes") { ScreenGrounder.shared.prefetch() }   // then the pointing eyes for icons
             qwen = launch(HomieModels.llamaServer,
                           ["-m", brain.path] + (vision.map { ["--mmproj", $0.path, "--image-max-tokens", "256"] } ?? []) + [
                            "--host", "127.0.0.1", "--port", "19877", "--api-key-file", "KEY", "-c", Self.tier.context, "-np", "1", "--reasoning", "off", "--jinja", "--slot-save-path", Self.cacheFolder.path],
