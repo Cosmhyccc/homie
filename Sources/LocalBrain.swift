@@ -180,6 +180,9 @@ import CryptoKit
     private var echoCeiling: Float = -120
     private var loudRun = 0
     private var recent: [AVAudioPCMBuffer] = []
+    /// Hold fn to talk: while fn is held a pause never ends the turn; letting go does. Once a session has used it,
+    /// homie keeps the mic warm after each reply but waits for the next hold instead of jumping in mid-sentence.
+    private var holding = false, pushToTalk = false, awaitingHold = false
 
     // MARK: Runtimes
 
@@ -457,6 +460,7 @@ import CryptoKit
     func stop() {
         guard phase != .idle else { return }
         listenID = UUID(); turnID = UUID(); turn?.cancel(); turn = nil
+        holding = false; pushToTalk = false; awaitingHold = false
         endRecognition(); dropHead(); stopSpeech(); idleClose?.invalidate()
         engine.stop(); if tapped { engine.inputNode.removeTap(onBus: 0); tapped = false }
         onInputLevel?(0); onOutputLevel?(0)
@@ -516,9 +520,10 @@ import CryptoKit
     private func mic(_ buffer: AVAudioPCMBuffer, db: Float, rms: Float) {
         switch phase {
         case .listening:
+            if awaitingHold { recent.append(buffer); if recent.count > 24 { recent.removeFirst() }; return }
             request?.append(buffer); onInputLevel?(min(1, rms * 6))
         case .speaking:
-            guard UserDefaults.standard.object(forKey: "pixieLocalBargeIn") as? Bool ?? true else { return }
+            guard !pushToTalk, UserDefaults.standard.object(forKey: "pixieLocalBargeIn") as? Bool ?? true else { return }
             recent.append(buffer); if recent.count > 24 { recent.removeFirst() }
             let t = Date().timeIntervalSince(speechStartedAt)
             guard t > 0.35 else { return }
@@ -536,7 +541,7 @@ import CryptoKit
         guard let recognizer, recognizer.supportsOnDeviceRecognition else {
             fail("On-device English speech isn't available on this Mac."); return
         }
-        let id = UUID(); listenID = id
+        let id = UUID(); listenID = id; awaitingHold = false
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.requiresOnDeviceRecognition = true; req.shouldReportPartialResults = true
         req.contextualStrings = ["homie", "hey homie", "Pixie", "Safari", "Spotify", "Apple Music"]
@@ -550,21 +555,24 @@ import CryptoKit
                 self.heard = text; self.lastHeardAt = ProcessInfo.processInfo.systemUptime
                 self.idleClose?.invalidate()
                 self.endOfTurn?.invalidate()
-                let wait = LocalRouter.endpointDelay(text)
-                self.endOfTurn = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in Task { @MainActor in self?.userFinished() } }
+                // Held fn: wait for the release. Just released: a beat for the last word. Hands-free: guess from the words.
+                let wait = self.pushToTalk ? 0.35 : LocalRouter.endpointDelay(text)
+                if !self.holding {
+                    self.endOfTurn = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in Task { @MainActor in self?.userFinished() } }
+                }
                 self.headTimer?.invalidate()
                 if let head = self.head, head.text != text { head.cancel(); self.head = nil }
                 if wait >= 0.6, self.qwenReady, !self.freshlyRestored, LocalRouter.intent(text, music: Self.musicApp()) == nil {
                     self.headTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in Task { @MainActor in self?.startHead(text) } }
                 }
-                if result.isFinal { self.userFinished() }
+                if result.isFinal, !self.holding { self.userFinished() }
             }
         }
         set(.listening, "Listening")
         // Hands-free: nod off after a quiet stretch.
         idleClose?.invalidate()
         idleClose = Timer.scheduledTimer(withTimeInterval: 25, repeats: false) { [weak self] _ in Task { @MainActor in
-            guard let self, self.phase == .listening, self.heard.isEmpty else { return }
+            guard let self, self.phase == .listening, self.heard.isEmpty, !self.holding else { return }
             self.stop()
         } }
     }
@@ -617,6 +625,42 @@ import CryptoKit
         onCaption?(text, false)
         ask(text)
     }
+    /// Fn held down (true) or let go (false). Holding cuts homie off and listens; letting go sends what was said.
+    func hold(_ down: Bool) {
+        if down {
+            holding = true; pushToTalk = true
+            endOfTurn?.invalidate(); idleClose?.invalidate()
+            switch phase {
+            case .thinking, .speaking:
+                Diagnostics.shared.record("local_interrupt", category: "hold")
+                recent = []; bargeIn()
+            case .listening where awaitingHold:
+                let lead = Array(recent.suffix(20)); recent = []   // ~0.4 s before the press: catches a first word said with it
+                listen(prefill: lead)
+            default: break   // waking: listen() starts held
+            }
+            return
+        }
+        holding = false
+        guard phase == .listening, !awaitingHold else { return }
+        endOfTurn?.invalidate()
+        endOfTurn = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in Task { @MainActor in
+            guard let self, self.phase == .listening, !self.holding, !self.awaitingHold else { return }
+            if self.heard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { self.waitForHold() } else { self.userFinished() }
+        } }
+    }
+    /// Push-to-talk between turns: mic warm, nothing transcribed, until fn is held again (or a quiet minute closes it).
+    private func waitForHold() {
+        endRecognition(); dropHead(); onInputLevel?(0)
+        awaitingHold = true; recent = []; heard = ""
+        set(.listening, "Hold fn to talk")
+        idleClose?.invalidate()
+        idleClose = Timer.scheduledTimer(withTimeInterval: 60, repeats: false) { [weak self] _ in Task { @MainActor in
+            guard let self, self.awaitingHold, !self.holding else { return }
+            self.stop()
+        } }
+    }
+
     /// Fn while homie is thinking or talking: stop and listen. Returns false when there was nothing to interrupt.
     func interrupt() -> Bool {
         guard phase == .thinking || phase == .speaking else { return false }
@@ -993,6 +1037,7 @@ import CryptoKit
         onOutputLevel?(0)
         speechStartedAt = .distantFuture
         if closeAfterReply { closeAfterReply = false; stop(); return }
+        if pushToTalk { waitForHold(); return }   // talks only while fn is held
         listen(prefill: [])   // hands-free: Pixie listens again
     }
     private func stopSpeech() {

@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var previousFn = false
     private var fnDownAt: Date?
     private var drawing = false
+    private var holding = false   // fn held: push-to-talk
+    private var woke = false      // this press started homie
     private var talking = false
     private var lastSpeaker: Bool?
     private var caption = ""
@@ -74,22 +76,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         // Poll the real Fn key (not the function modifier shared by arrow keys).
-        // Tap: talk / interrupt / end. Hold: draw on the screen, release to ask about it.
+        // Tap: talk hands-free / interrupt / end. Hold: talk until you let go. Fn+Control: draw, release to ask about it.
         previousFn = CGEventSource.keyState(.hidSystemState, key: CGKeyCode(kVK_Function))
         let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
             guard let self else { return }
             let down = CGEventSource.keyState(.hidSystemState, key: CGKeyCode(kVK_Function))
-            let alone = NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
-            if down && !self.previousFn && alone { self.fnDownAt = Date() }
-            if down, let began = self.fnDownAt, !self.drawing, Date().timeIntervalSince(began) >= 0.28 {
-                self.drawing = true
+            let flags = NSEvent.modifierFlags
+            let alone = flags.intersection([.command, .control, .option, .shift]).isEmpty
+            let drawChord = down && flags.contains(.control) && flags.intersection([.command, .option, .shift]).isEmpty
+            if drawChord && !self.drawing {
+                if self.holding { self.holding = false; MainActor.assumeIsolated { self.brain.hold(false) } }
+                self.fnDownAt = nil; self.woke = false; self.drawing = true
                 ScreenInk.shared.begin()
+                if !self.talking { self.toggle() }
                 self.notch.model.visionStatus = "Draw to point · Release Fn to ask"
+            }
+            if self.drawing && !drawChord { self.drawing = false; self.notch.model.visionStatus = nil; ScreenInk.shared.end() }
+            if down && !self.previousFn && alone {
+                self.fnDownAt = Date()
+                // Wake on the press, so a hold is heard from its first word.
+                if !self.talking { self.woke = true; self.toggle() }
+            }
+            if down, let began = self.fnDownAt, !self.holding, Date().timeIntervalSince(began) >= 0.28 {
+                self.holding = true; MainActor.assumeIsolated { self.brain.hold(true) }
             }
             if !down && self.previousFn, self.fnDownAt != nil {
                 self.fnDownAt = nil
-                if self.drawing { self.drawing = false; self.notch.model.visionStatus = nil; ScreenInk.shared.end() }
-                else { self.toggle() }
+                if self.holding { self.holding = false; MainActor.assumeIsolated { self.brain.hold(false) } }
+                else if !self.woke { self.toggle() }
+                self.woke = false
             }
             self.previousFn = down
         }
