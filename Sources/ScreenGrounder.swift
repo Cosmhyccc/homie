@@ -52,6 +52,12 @@ import AppKit
         return CGPoint(x: (x0 + second.x * w) / W, y: (y0 + second.y * h) / H)
     }
 
+    /// Load the model while ScreenMarks is still trying text and labels, so a miss doesn't also wait ~10–20 s for the load.
+    func warm() {
+        guard available else { return }
+        Task { @MainActor in if await start() { stopWhenIdle() } }
+    }
+
     func shutdown() {
         idle?.cancel(); starting?.cancel()
         if let server, server.isRunning { server.terminate() }

@@ -145,19 +145,36 @@ enum LocalRouter {
     /// Pointing at the screen: "circle this", "underline the deadline", "circle the Send button", "point at Settings",
     /// "where's the share button". homie finds the words or control on screen itself (ScreenMarks); no model needed.
     static func markIntent(_ text: String) -> LocalIntent? {
-        if let m = text.range(of: #"^(can you |please )?(circle|underline|box|highlight) (this|that|it)$"#, options: .regularExpression) {
-            let verb = String(text[m]).split(separator: " ").map(String.init).first { ["circle", "underline", "box", "highlight"].contains($0) } ?? "circle"
+        if let m = text.range(of: #"^(circle|underline|box|highlight) (this|that|it)$"#, options: .regularExpression) {
+            let verb = String(text[m]).split(separator: " ").map(String.init).first ?? "circle"
             return LocalIntent(tool: "mark_screen", args: ["marks": "\(verb) it"], say: "Got it.")
         }
-        if let m = text.range(of: #"^where('s| is) the (.{2,30}) (button|icon|tab|link|menu|toggle|switch)$"#, options: .regularExpression) {
-            let target = String(text[m]).replacingOccurrences(of: #"^where('s| is) the "#, with: "", options: .regularExpression)
-            return LocalIntent(tool: "mark_screen", args: ["marks": "arrow \(target)"], say: "Right there.")
+        let controls = #"(button|icon|tab|link|menu|toggle|switch|slider|fader|knob|tool|bar|field|checkbox|dropdown|panel|control)"#
+        // "where's the share button", "where are the titles", "show me where the crop tool is", "where do i find the split tool"
+        let wheres = [#"^(where('s| is| are)|show me where|where can i find|where do i find|how do i find|find|show me) (the |my )?(?<t>.{2,40} "# + controls + #")( is| are)?$"#,
+                      #"^(where('s| is) the|where are (the )?|show me where the |where can i find the |where do i find the )(?<t>[a-z0-9' -]{2,30}?)( is| are)?$"#]
+        for (index, pattern) in wheres.enumerated() {
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let m = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  let r = Range(m.range(withName: "t"), in: text) else { continue }
+            let target = String(text[r]).trimmingCharacters(in: .whitespaces)
+            // Real-world places and things, not something on screen: "where is the nearest gas station".
+            guard target.split(separator: " ").count <= 5,
+                  target.range(of: #"^(nearest|closest|best|cheapest|next|last|weather|time|date)\b|\b(near me|nearby|today|tonight)$"#, options: .regularExpression) == nil
+            else { return nil }
+            // No control word ("where is the crop"): only point if it's named on screen; the eyes don't guess at
+            // a bare noun, which may be a real place ("where is the eiffel tower") and goes to the model instead.
+            var args: [String: Any] = ["marks": "arrow \(target)"]
+            if index == 1 { args["vision"] = false }
+            return LocalIntent(tool: "mark_screen", args: args, say: "Right there.")
         }
-        guard let m = text.range(of: #"^(can you |please )?(circle|underline|box|highlight|point at|point to) (the )?(.{2,40})$"#, options: .regularExpression) else { return nil }
-        let phrase = String(text[m]).replacingOccurrences(of: #"^(can you |please )?"#, with: "", options: .regularExpression)
-        let verb = phrase.hasPrefix("point") ? "arrow" : String(phrase.split(separator: " ").first ?? "circle")
-        let target = phrase.replacingOccurrences(of: #"^(circle|underline|box|highlight|point at|point to) (the )?"#, with: "", options: .regularExpression)
+        guard let m = text.range(of: #"^(circle|underline|box|highlight|point at|point to|point out|point me to|show me) (the )?(.{2,40})$"#, options: .regularExpression) else { return nil }
+        let phrase = String(text[m])
+        let verb = phrase.hasPrefix("point") || phrase.hasPrefix("show") ? "arrow" : String(phrase.split(separator: " ").first ?? "circle")
+        let target = phrase.replacingOccurrences(of: #"^(circle|underline|box|highlight|point at|point to|point out|point me to|show me) (the )?"#, with: "", options: .regularExpression)
         guard !["this", "that", "it", "everything", "all", "me"].contains(target) else { return nil }
+        // "show me" alone is too broad ("show me the weather"): only when it names a control.
+        if phrase.hasPrefix("show me"), target.range(of: " " + controls + "$", options: .regularExpression) == nil { return nil }
         return LocalIntent(tool: "mark_screen", args: ["marks": "\(verb) \(target)"], say: verb == "arrow" ? "Right there." : "There.")
     }
 

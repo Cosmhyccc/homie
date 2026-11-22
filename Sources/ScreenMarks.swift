@@ -32,7 +32,8 @@ enum ScreenMarks {
 
     /// Words that describe a target rather than appear on screen ("the Send button" → "Send").
     static func core(_ target: String) -> String {
-        let filler: Set<String> = ["the", "a", "an", "button", "icon", "word", "words", "text", "link", "tab", "menu", "field", "option", "toggle", "switch", "that", "says", "labeled", "called"]
+        let filler: Set<String> = ["the", "a", "an", "button", "icon", "word", "words", "text", "link", "tab", "menu", "field", "option", "toggle", "switch", "that", "says", "labeled", "called",
+                                  "slider", "fader", "knob", "tool", "control", "bar", "thing", "little", "small"]
         let kept = target.lowercased().split(separator: " ").map(String.init).filter { !filler.contains($0) }
         return kept.isEmpty ? target.lowercased() : kept.joined(separator: " ")
     }
@@ -55,13 +56,15 @@ enum ScreenMarks {
     }
 
     /// The best on-screen box for a target: exact phrase inside a line, then whole-word overlap.
-    nonisolated static func find(_ target: String, in lines: [(text: String, box: CGRect, observation: VNRecognizedText)]) -> CGRect? {
+    /// `label`: the user means a control, so only short lines count (a button's label, not a sentence that mentions it).
+    nonisolated static func find(_ target: String, in lines: [(text: String, box: CGRect, observation: VNRecognizedText)], label: Bool = false) -> CGRect? {
         let want = core(target)
         guard !want.isEmpty else { return nil }
         var best: (score: Double, rect: CGRect)?
         for line in lines {
             let lower = line.text.lowercased()
-            if let range = lower.range(of: want) {
+            if label, lower.count > want.count + 14 { continue }
+            if let range = wordRange(want, in: lower) {
                 // Box of just the matching words, not the whole line.
                 let original = line.text.index(line.text.startIndex, offsetBy: lower.distance(from: lower.startIndex, to: range.lowerBound))
                 let end = line.text.index(original, offsetBy: want.count, limitedBy: line.text.endIndex) ?? line.text.endIndex
@@ -104,14 +107,24 @@ enum ScreenMarks {
         if AXUIElementCopyAttributeValue(root, kAXWindowsAttribute as CFString, &windows) == .success, let list = windows as? [AXUIElement], !list.isEmpty { start = list }
         var queue = start.map { ($0, 0) }, cursor = 0
         let deadline = ProcessInfo.processInfo.systemUptime + 0.6
+        let containers: Set<String> = ["AXGroup", "AXSplitGroup", "AXScrollArea", "AXWindow", "AXLayoutArea", "AXOutline", "AXList", "AXTable"]
+        var best: (tier: Int, length: Int, rect: CGRect)?
         func text(_ e: AXUIElement, _ key: String) -> String {
             var v: CFTypeRef?; return AXUIElementCopyAttributeValue(e, key as CFString, &v) == .success ? (v as? String ?? "") : ""
         }
         while cursor < queue.count, cursor < 2500, ProcessInfo.processInfo.systemUptime < deadline {
             let (node, depth) = queue[cursor]; cursor += 1
             let names = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute].map { text(node, $0).lowercased() }.filter { !$0.isEmpty && $0.count < 80 }
-            if names.contains(where: { $0 == want || ($0.contains(want) && want.count >= 4) }) {
-                if let rect = frame(of: node, on: screen) { return rect }
+            // An exact name wins at once; then whole words ("play" → "Play Pause", never "Display Area"), then a word that
+            // starts with it ("crop" → "Cropping"); shortest name first, and never a container that just mentions it.
+            let ranked = names.compactMap { name -> (tier: Int, length: Int)? in
+                name == want ? (0, 0) : hasWords(want, in: name) ? (1, name.count)
+                    : want.count >= 4 && wordRange(want, in: name, prefix: true) != nil ? (2, name.count) : nil
+            }.min { ($0.tier, $0.length) < ($1.tier, $1.length) }
+            if let ranked, best.map({ (ranked.tier, ranked.length) < ($0.tier, $0.length) }) ?? true,
+               !containers.contains(text(node, kAXRoleAttribute)), let rect = frame(of: node, on: screen), rect.width * rect.height < 0.1 {
+                if ranked.tier == 0 { return rect }
+                best = (ranked.tier, ranked.length, rect)
             }
             guard depth < 16 else { continue }
             var children: CFTypeRef?
@@ -119,7 +132,15 @@ enum ScreenMarks {
                 queue.append(contentsOf: list.map { ($0, depth + 1) })
             }
         }
-        return nil
+        return best?.rect
+    }
+
+    /// `words` appears in `text` as whole words: "movie" is not in "imovie", "play" is not in "display".
+    nonisolated static func hasWords(_ words: String, in text: String) -> Bool { wordRange(words, in: text) != nil }
+    /// `prefix`: the last word may run on ("crop" in "cropping").
+    nonisolated static func wordRange(_ words: String, in text: String, prefix: Bool = false) -> Range<String.Index>? {
+        let pattern = "(?<![\\p{L}\\p{N}])" + NSRegularExpression.escapedPattern(for: words) + (prefix ? "" : "(?![\\p{L}\\p{N}])")
+        return text.range(of: pattern, options: [.regularExpression, .caseInsensitive])
     }
 
     /// An accessibility element's frame in this screen's normalized top-left space (AX uses the primary display's top-left).
@@ -140,7 +161,7 @@ enum ScreenMarks {
     /// "the close button", "settings icon": the user means a control, so real controls win over matching text.
     static func meansControl(_ target: String) -> Bool {
         let words = Set(target.lowercased().split(separator: " ").map(String.init))
-        return !words.isDisjoint(with: ["button", "icon", "tab", "field", "toggle", "switch", "checkbox", "menu", "slider", "dropdown"])
+        return !words.isDisjoint(with: ["button", "icon", "tab", "field", "toggle", "switch", "checkbox", "menu", "slider", "dropdown", "fader", "knob", "tool", "control"])
     }
 
     // MARK: Marking
@@ -153,6 +174,8 @@ enum ScreenMarks {
         let userMarks = ink.strokes.filter { !$0.assistant }.flatMap(\.points)
         let screen = (userMarks.isEmpty ? nil : ink.screen) ?? NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
         guard let screen else { done(["status": "error", "message": "No screen to mark."]); return }
+        // An icon or control may have no name to match: start the vision pointer loading now, in parallel.
+        if marks.contains(where: { meansControl($0.target) }) { ScreenGrounder.shared.warm() }
         Task { @MainActor in
             // One screenshot and one text pass for all marks; skip it when every target is the user's own circle.
             let needsText = marks.contains { !["it", "this", "that", "here"].contains($0.target.lowercased()) }
@@ -171,12 +194,12 @@ enum ScreenMarks {
                     rect = CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
                 } else {
                     rect = meansControl(mark.target)
-                        ? control(mark.target, on: screen) ?? find(mark.target, in: lines)
+                        ? control(mark.target, on: screen) ?? find(mark.target, in: lines, label: true)
                         : find(mark.target, in: lines) ?? control(mark.target, on: screen)
                 }
                 guard let rect else {
                     // No words or accessibility name to match (icons, faders, canvases): the vision pointer looks for it.
-                    if screenshot != nil, ScreenGrounder.shared.available, !["it", "this", "that", "here"].contains(mark.target.lowercased()) {
+                    if screenshot != nil, args["vision"] as? Bool ?? true, ScreenGrounder.shared.available, !["it", "this", "that", "here"].contains(mark.target.lowercased()) {
                         looking.append(mark)
                     } else { missing.append(mark.target) }
                     continue
