@@ -39,7 +39,7 @@ enum HomieModels {
 
     /// The installed brain for this tier, or nil when it still needs downloading.
     static func installed(_ tier: LocalBrain.Tier) -> URL? { find(model(tier).file) }
-    private static func find(_ file: String) -> URL? {
+    static func find(_ file: String) -> URL? {
         for candidate in [folder.appendingPathComponent(file), LocalBrain.assets.appendingPathComponent("models/\(file)")]
         where FileManager.default.fileExists(atPath: candidate.path) { return candidate }
         return nil

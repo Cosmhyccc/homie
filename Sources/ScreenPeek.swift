@@ -30,9 +30,9 @@ enum ScreenPeek {
         return peek.note == nil && peek.image == nil ? nil : peek
     }
 
-    /// The crop as a JPEG data URL, longest side at most 1024 px (the brain reads it at ≤256 image tokens anyway).
-    nonisolated static func jpegDataURL(_ image: CGImage) -> String? {
-        let scale = min(1, 1024 / CGFloat(max(image.width, image.height)))
+    /// The crop as a JPEG data URL, longest side at most `maxSide` px (the brain reads it at ≤256 image tokens anyway).
+    nonisolated static func jpegDataURL(_ image: CGImage, maxSide: CGFloat = 1024) -> String? {
+        let scale = min(1, maxSide / CGFloat(max(image.width, image.height)))
         let size = NSSize(width: max(1, CGFloat(image.width) * scale), height: max(1, CGFloat(image.height) * scale))
         guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height), bitsPerSample: 8,
                                          samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return nil }

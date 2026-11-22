@@ -221,6 +221,7 @@ enum LocalRouter {
         let status = result["status"] as? String ?? ""
         let unclear: Set<String> = ["", "error", "failed", "not_running", "app_learned", "needs_confirmation", "not_found", "cancelled"]
         if unclear.contains(status) { return nil }
+        if status == "looking" { return "One sec, finding it." }   // the vision pointer marks it in a few seconds
         switch intent.tool {
         case "read_calendar": return calendarLine(result, offset: intent.args["day_offset"] as? Int ?? 0, now: now, calendar: calendar)
         case "read_reminders": return remindersLine(result)

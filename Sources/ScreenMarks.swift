@@ -8,7 +8,7 @@ import Vision
 enum ScreenMarks {
     static let tool: [String: Any] = [
         "type": "function", "name": "mark_screen",
-        "description": "Point things out on the user's screen while you talk: circle, underline, box or arrow to text or buttons that are visible. marks: separated by ';', each 'mark target | label' with mark circle, underline, box, arrow or point; target is the exact words shown on screen or a button's name; label is optional. Use 'it' as the target for what the user circled. Example: circle Send; underline due Friday; arrow Settings | click here",
+        "description": "Point things out on the user's screen while you talk: circle, underline, box or arrow to text or buttons that are visible. marks: separated by ';', each 'mark target | label' with mark circle, underline, box, arrow or point; target is the exact words shown on screen, a button's name, or a short description of an unlabeled icon or control (e.g. scissors icon, volume fader); label is optional. Use 'it' as the target for what the user circled. Example: circle Send; underline due Friday; arrow Settings | click here",
         "parameters": ["type": "object", "properties": ["marks": ["type": "string"]], "required": ["marks"], "additionalProperties": false], "strict": true
     ]
     static func owns(_ name: String) -> Bool { name == "mark_screen" }
@@ -157,11 +157,13 @@ enum ScreenMarks {
             // One screenshot and one text pass for all marks; skip it when every target is the user's own circle.
             let needsText = marks.contains { !["it", "this", "that", "here"].contains($0.target.lowercased()) }
             var lines: [(text: String, box: CGRect, observation: VNRecognizedText)] = []
+            var screenshot: CGImage?
             if needsText, let image = try? await ScreenVision().captureImage() {
+                screenshot = image
                 lines = await Task.detached(priority: .userInitiated) { readLines(image) }.value
             }
             let snapshot = ink.captured(on: screen)
-            var shown: [String] = [], missing: [String] = []
+            var shown: [String] = [], missing: [String] = [], looking: [Mark] = []
             for mark in marks {
                 var rect: CGRect?
                 if ["it", "this", "that", "here"].contains(mark.target.lowercased()), userMarks.count > 2 {
@@ -172,13 +174,38 @@ enum ScreenMarks {
                         ? control(mark.target, on: screen) ?? find(mark.target, in: lines)
                         : find(mark.target, in: lines) ?? control(mark.target, on: screen)
                 }
-                guard let rect else { missing.append(mark.target); continue }
+                guard let rect else {
+                    // No words or accessibility name to match (icons, faders, canvases): the vision pointer looks for it.
+                    if screenshot != nil, ScreenGrounder.shared.available, !["it", "this", "that", "here"].contains(mark.target.lowercased()) {
+                        looking.append(mark)
+                    } else { missing.append(mark.target) }
+                    continue
+                }
                 draw(mark, around: rect, snapshot: snapshot, aspect: Double(screen.frame.width / screen.frame.height))
                 shown.append("\(mark.kind) \(mark.target)")
             }
             Diagnostics.shared.record("local_marks", category: missing.isEmpty ? "found" : shown.isEmpty ? "missing" : "partial",
                                       number: Int((ProcessInfo.processInfo.systemUptime - started) * 1000))
-            if shown.isEmpty {
+            if let screenshot, !looking.isEmpty {
+                let aspect = Double(screen.frame.width / screen.frame.height)
+                Task { @MainActor in
+                    for mark in looking {
+                        let began = ProcessInfo.processInfo.systemUptime
+                        let point = await ScreenGrounder.shared.locate(mark.target, in: screenshot)
+                        Diagnostics.shared.record("local_grounding", category: point == nil ? "missing" : "found",
+                                                  number: Int((ProcessInfo.processInfo.systemUptime - began) * 1000))
+                        guard let point else { continue }
+                        // A point, not a box: a small square (in screen pixels) around it.
+                        let w = 0.018, h = w * aspect
+                        let rect = CGRect(x: point.x - w / 2, y: point.y - h / 2, width: w, height: h)
+                        draw(mark, around: rect, snapshot: ScreenInk.shared.captured(on: screen), aspect: aspect)
+                    }
+                }
+                let names = looking.map(\.target).joined(separator: ", ")
+                done(["status": shown.isEmpty ? "looking" : "marked", "marked": shown.joined(separator: ", "), "looking_for": names,
+                      "not_found": missing.joined(separator: ", "),
+                      "message": "homie's eyes are spotting \(names) on screen; the mark appears in a few seconds. Say you're pointing it out; don't guess or describe where it is."])
+            } else if shown.isEmpty {
                 done(["status": "not_found", "message": "Couldn't find \(missing.joined(separator: ", ")) on screen. Say so briefly; don't guess where it is."])
             } else {
                 done(["status": "marked", "marked": shown.joined(separator: ", "),

@@ -150,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkey?.invalidate()
-        MainActor.assumeIsolated { brain.shutdown() }
+        MainActor.assumeIsolated { brain.shutdown(); ScreenGrounder.shared.shutdown() }
     }
 }
 
