@@ -5,7 +5,7 @@
 # homie
 
 **A voice buddy in your Mac's notch that runs entirely on your Mac.**<br>
-Press <kbd>fn</kbd>, talk. It sets timers, plays music, reads your calendar, flips dark mode, looks at what you circle on screen, points things out on your screen, shows 3D models, and talks back. The brain, the voice and your memories never leave the computer. Works in airplane mode.
+Hold <kbd>fn</kbd>, talk. It sets timers, plays music, reads your calendar, flips dark mode, looks at what you circle on screen, points things out on your screen, shows 3D models, and talks back. The brain, the voice and your memories never leave the computer. Works in airplane mode.
 
 [![tests](../../actions/workflows/tests.yml/badge.svg)](../../actions/workflows/tests.yml)
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-black?logo=apple)
@@ -84,14 +84,14 @@ What homie learns about you lives in `~/Library/Application Support/Pixie/Local/
 
 Requires an **Apple silicon** Mac (M1 or newer) on **macOS 26+**.
 
-**Just want it?** [Download homie.dmg](https://homie-mac.vercel.app/download?from=readme) (signed and notarized), drag it to Applications, press fn and talk. The download also includes homie max, the optional paid cloud tier, which isn't in this repo.
+**Just want it?** [Download homie.dmg](https://homie-mac.vercel.app/download?from=readme) (signed and notarized), drag it to Applications, hold fn and talk. The download also includes homie max, the optional paid cloud tier, which isn't in this repo.
 
 **Build it yourself:**
 
 ```bash
 git clone https://github.com/Cosmhyccc/homie && cd homie
 bash build.sh            # fetches llama.cpp (checksum-verified), builds the voice engine, builds homie.app
-open build/homie.app     # press fn and talk
+open build/homie.app     # hold fn and talk
 ```
 
 On first launch homie downloads its brain once. Macs with **8 GB** automatically get **homie lite** (Qwen 3.5 2B, ~1.9 GB in memory for brain + voice instead of ~3.75 GB).
