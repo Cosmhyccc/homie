@@ -72,7 +72,7 @@ Everything runs on your Mac. homie makes these network requests and no others:
 | You ask to play a song | Song lookup and album art | Apple's iTunes Search API |
 | You ask to open a site or search | Your browser opens it | wherever you asked |
 
-No accounts, no analytics (the signed download's setup screens count anonymous steps, with rough location (country/city, the IP itself isn't kept), until you pick free homie, then nothing; this source build has none at all). Speech recognition, dictation (<kbd>fn</kbd>+<kbd>⌃</kbd>) and screen reading (hold <kbd>fn</kbd> and circle something) all run on your Mac: the circled area goes to the local model as a picture and never leaves the computer. Verify it yourself:
+No accounts, no analytics (the signed download's setup screens count anonymous steps, with rough location (country/city, the IP itself isn't kept), until you pick free homie, then nothing; this source build has none at all; the download link counts one anonymous download, no cookies). Speech recognition, dictation (<kbd>fn</kbd>+<kbd>⌥</kbd>) and screen reading (hold <kbd>fn</kbd>+<kbd>⌃</kbd> and circle something) all run on your Mac: the circled area goes to the local model as a picture and never leaves the computer. Verify it yourself:
 
 ```bash
 lsof -nP -i -a -c llama-server     # the brain only listens on 127.0.0.1
@@ -84,7 +84,7 @@ What homie learns about you lives in `~/Library/Application Support/Pixie/Local/
 
 Requires an **Apple silicon** Mac (M1 or newer) on **macOS 26+**.
 
-**Just want it?** [Download homie.dmg](https://github.com/Cosmhyccc/homie/releases/latest/download/homie.dmg) (signed and notarized), drag it to Applications, press fn and talk. The download also includes homie max, the optional paid cloud tier, which isn't in this repo.
+**Just want it?** [Download homie.dmg](https://homie-mac.vercel.app/download?from=readme) (signed and notarized), drag it to Applications, press fn and talk. The download also includes homie max, the optional paid cloud tier, which isn't in this repo.
 
 **Build it yourself:**
 
