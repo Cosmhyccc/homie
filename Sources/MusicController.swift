@@ -19,6 +19,9 @@ struct MusicTrack: Decodable {
 final class MusicController {
     var onTrack: ((MusicTrack?, NSImage?) -> Void)?
     var onStatus: ((String, Bool) -> Void)?
+    /// The exact song was found and is about to open (title, artist). Starting playback takes Music another 2–10 s,
+    /// so homie's instant lane speaks here instead of waiting in silence (Saif's logs: play p50 4 s, max 11.8 s).
+    @MainActor static var onSongFound: ((String, String) -> Void)?
     private let queue = DispatchQueue(label: "local.pixie.music", qos: .userInitiated)
     private var timer: Timer?
     private var refreshing = false
@@ -96,6 +99,7 @@ final class MusicController {
         components.scheme = "music"
         guard let url = components.url else { throw MusicFailure.message("Couldn’t open that song link.") }
         onStatus?("Opening \(match.trackName)…", false)
+        Self.onSongFound?(match.trackName, match.artistName)
         NSWorkspace.shared.open(url)
         var pressed = false
         for attempt in 0..<40 {

@@ -726,6 +726,8 @@ import CryptoKit
            !(wire.last?["role"] as? String == "assistant" && wire.last?["tool_calls"] == nil) { wire = Array(wire.prefix(lastUser)) }
     }
 
+    /// What the instant lane already said for this turn before its tool finished ("Playing X by Y").
+    private var earlyLine: String?
     private func ask(_ text: String) {
         devLog(text)
         conversationLines.append(text)
@@ -764,10 +766,28 @@ import CryptoKit
                         speakLine(fast.say); wire.append(["role": "assistant", "content": fast.say])
                         replyDone = true; finishIfDone(); return
                     }
+                    // "play X": say what's playing as soon as the song is found, not after Music confirms (2–10 s later).
+                    earlyLine = nil
+                    if fast.tool == "play_apple_music" {
+                        MusicController.onSongFound = { [weak self] title, artist in
+                            guard let self, self.turnID == id, self.earlyLine == nil else { return }
+                            let line = artist.isEmpty ? "Playing \(title)." : "Playing \(title) by \(artist)."
+                            self.earlyLine = line
+                            self.speakLine(line)
+                        }
+                    }
                     let result = await call(fast.tool, fast.args, id: "fast_\(UUID().uuidString.prefix(8))")
+                    MusicController.onSongFound = nil
                     guard turnID == id else { return }
                     if let line = LocalRouter.reply(fast, result: result) {
                         closeAfterReply = ["play_apple_music"].contains(fast.tool) || fast.args["action"] as? String == "resume"
+                        if earlyLine == nil { speakLine(line) }
+                        wire.append(["role": "assistant", "content": earlyLine ?? line])
+                        replyDone = true; finishIfDone(); return
+                    }
+                    // Said "Playing X" but it failed: tell them plainly instead of a slow model turn.
+                    if earlyLine != nil {
+                        let line = (result["message"] as? String).map { "Hmm, that didn't start. \($0)" } ?? "Hmm, Music didn't start that one."
                         speakLine(line); wire.append(["role": "assistant", "content": line])
                         replyDone = true; finishIfDone(); return
                     }
