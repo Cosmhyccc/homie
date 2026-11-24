@@ -299,6 +299,9 @@ import CryptoKit
     /// rolls it back to the last one (~2/3 through the prompt) and the real question re-reads the rest: 13 s in Saif's test,
     /// vs ~2.5 s with no head start. So the first question after a restore skips the head start.
     private var freshlyRestored = false
+    /// True while the brain reads its instructions from scratch (first launch after the download, or after an update changed
+    /// them): 10-14 s on an M5. A question asked then waits in line, so homie says so instead of going quiet.
+    private var coldPriming = false
     private func prime() {
         let system = systemPrompt(), tools = chatTools
         primedPrompt = system
@@ -324,6 +327,8 @@ import CryptoKit
             let restored = FileManager.default.fileExists(atPath: folder.appendingPathComponent(file).path) ? await slot("restore", file) : false
             if restored { self.freshlyRestored = true }
             if !restored {
+                self.coldPriming = true
+                defer { self.coldPriming = false }
                 // Read the instructions up to and including the start-of-user-turn marker, nothing more.
                 guard let (data, _) = try? await URLSession.shared.data(for: template),
                       let rendered = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["prompt"] as? String,
@@ -808,6 +813,11 @@ import CryptoKit
                     replyDone = true; finishIfDone(); return
                 }
                 var acknowledged = false
+                if coldPriming {
+                    acknowledged = true
+                    Diagnostics.shared.record("local_no_brain_yet", category: "priming")
+                    speakLine("One sec, I'm still waking up.")
+                }
                 for _ in 0..<5 {
                     guard turnID == id else { return }
                     var chunker = PhraseChunker()
